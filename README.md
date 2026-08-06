@@ -33,7 +33,7 @@ Developed by **[Girish M Gulaganji](https://github.com/girish-m-gulaganji)**.
   * **NumPy Vector Store (`embeddings.npz`)**: High-dimensional vector database for fast AI matching.
 * **🔒 Admin Portal & Session Security**: Secure Admin Login Portal with session management and top-bar authentication controls.
 * **🟡 Cyberpunk Gold UI Dashboard**: Modern Single Page Web UI with live camera feed recognition, video tracking progress, dark glassmorphism styling, and gold glow accents.
-* **🤗 Hugging Face Spaces & Docker Ready**: Native Hugging Face Space Docker SDK support.
+* **🌐 VPS & Docker Ready**: Includes 1-click Linux VPS installer (`deploy_vps.sh`) and Docker Compose configuration.
 
 ---
 
@@ -43,11 +43,23 @@ Developed by **[Girish M Gulaganji](https://github.com/girish-m-gulaganji)**.
 - **Backend API**: Python 3.12, FastAPI, Uvicorn, ReportLab
 - **Database**: SQLite 3, NumPy
 - **Frontend**: HTML5, Vanilla CSS3 (Custom Design System), JavaScript (Fetch API / DOM)
-- **Deployment**: Hugging Face Spaces, Docker
+- **Deployment**: Linux VPS (Nginx + Systemd), Hugging Face Spaces, Docker
 
 ---
 
-## 🚀 Quick Start & Installation
+## 🌐 Linux VPS Deployment (DigitalOcean / AWS / Linode / Hostinger)
+
+Connect to your Linux server via SSH and run:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/girish-m-gulaganji/FaceTrackingProject/main/deploy_vps.sh | bash
+```
+
+The script will automatically install dependencies, set up Nginx reverse proxy, configure systemd auto-restart service, and launch your dashboard live on your VPS IP address!
+
+---
+
+## 🚀 Local Quick Start
 
 ### 1. Clone the Repository
 ```bash
@@ -60,14 +72,12 @@ cd FaceTrackingProject
 pip install -r requirements.txt
 ```
 
-### 3. Run the Web Platform
+### 3. Run Platform
 ```bash
-# Option A: Double-click start_server.bat on Windows
-
-# Option B: Run Uvicorn directly
-uvicorn server:app --host 0.0.0.0 --port 7860
+# Windows 1-Click: double-click start_server.bat
+uvicorn server:app --host 0.0.0.0 --port 8000
 ```
-Open **[http://127.0.0.1:7860](http://127.0.0.1:7860)** in your browser.
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
 
 ---
 
@@ -75,15 +85,6 @@ Open **[http://127.0.0.1:7860](http://127.0.0.1:7860)** in your browser.
 
 - **Username**: `admin`
 - **Password**: `admin123`
-
----
-
-## 🤗 Hugging Face Spaces Deployment
-
-1. Go to **[Hugging Face Spaces](https://huggingface.co/new-space)**.
-2. Enter Space Name: `VisionTrack-AI`.
-3. Select SDK: **Docker** → **Blank**.
-4. Push your repository code or connect your GitHub repository!
 
 ---
 
