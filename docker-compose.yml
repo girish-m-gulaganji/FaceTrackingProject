@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  visiontrack-ai:
+    build: .
+    container_name: visiontrack_ai
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./dataset:/app/dataset
+      - ./attendance_logs:/app/attendance_logs
+      - ./input_videos:/app/input_videos
+      - ./output_videos:/app/output_videos
+      - ./visiontrack.db:/app/visiontrack.db
+    environment:
+      - ADMIN_USER=admin
+      - ADMIN_PASS=admin123

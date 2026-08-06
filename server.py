@@ -1,0 +1,393 @@
+import os
+import sys
+import time
+import base64
+import asyncio
+import cv2
+import numpy as np
+import pandas as pd
+from typing import Optional
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+
+from face_tracker_engine import (
+    FaceDatabase,
+    FaceTracker,
+    AttendanceLogger,
+    load_insightface_app,
+    get_execution_context,
+    draw_fancy_label,
+)
+
+app = FastAPI(title="VisionTrack AI API", version="2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global engine instances
+print("[INFO] Loading InsightFace AI Engine...")
+ai_app, ctx_id = load_insightface_app()
+db = FaceDatabase()
+global_tracker = FaceTracker()
+global_logger = AttendanceLogger()
+
+# Background video task status tracking
+video_jobs = {}
+
+# Ensure static and workspace directories exist
+os.makedirs("static", exist_ok=True)
+os.makedirs("input_videos", exist_ok=True)
+os.makedirs("output_videos", exist_ok=True)
+os.makedirs("attendance_logs", exist_ok=True)
+os.makedirs("dataset/images", exist_ok=True)
+
+# Mount static directories for frontend and video streaming
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/output_videos", StaticFiles(directory="output_videos"), name="output_videos")
+app.mount("/input_videos", StaticFiles(directory="input_videos"), name="input_videos")
+
+# Admin Session Authentication Management
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
+active_sessions = set()
+
+@app.post("/api/login")
+def login(username: str = Form(...), password: str = Form(...)):
+    if username == ADMIN_USER and password == ADMIN_PASS:
+        token = f"sess_{int(time.time()*1000)}"
+        active_sessions.add(token)
+        response = JSONResponse(content={"success": True, "token": token, "username": username})
+        response.set_cookie(key="admin_session", value=token, httponly=True)
+        return response
+    raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+@app.post("/api/logout")
+def logout(session: Optional[str] = Form(None)):
+    if session in active_sessions:
+        active_sessions.remove(session)
+    response = JSONResponse(content={"success": True, "message": "Logged out."})
+    response.delete_cookie(key="admin_session")
+    return response
+
+@app.get("/api/auth-status")
+def auth_status(token: Optional[str] = None):
+    is_auth = (token in active_sessions) if token else False
+    return {"authenticated": is_auth, "user": ADMIN_USER if is_auth else None}
+
+@app.get("/")
+def read_root():
+    return FileResponse("static/index.html")
+
+from db_manager import DatabaseManager
+db_sql = DatabaseManager()
+
+# Seed SQLite DB with current embeddings
+for person in np.unique(db.names):
+    vec_count = int(np.sum(db.names == person))
+    db_sql.upsert_person(person, vector_count=vec_count)
+
+@app.get("/api/stats")
+def get_stats():
+    log_files = [f for f in os.listdir("attendance_logs") if f.endswith(".csv")] if os.path.exists("attendance_logs") else []
+    sql_stats = db_sql.get_summary_stats()
+    return {
+        "hardware": "NVIDIA CUDA (GPU)" if ctx_id == 0 else "CPU Mode",
+        "ctx_id": ctx_id,
+        "enrolled_persons": len(np.unique(db.names)),
+        "total_vectors": len(db.embeddings),
+        "csv_reports": len(log_files),
+        "db_stats": sql_stats,
+    }
+
+@app.get("/api/persons")
+def get_persons():
+    unique_persons = np.unique(db.names) if len(db.names) > 0 else []
+    db_persons_map = {p["name"]: p for p in db_sql.get_all_persons()}
+    records = []
+    for person in unique_persons:
+        count = int(np.sum(db.names == person))
+        db_rec = db_persons_map.get(person, {})
+        enrolled = db_rec.get("created_at", "N/A")
+        dept = db_rec.get("department", "General")
+        role = db_rec.get("role", "Member")
+        records.append({
+            "name": person,
+            "count": count,
+            "department": dept,
+            "role": role,
+            "enrolled_at": enrolled,
+        })
+    return {"persons": records}
+
+@app.post("/api/enroll")
+async def enroll_person(
+    name: str = Form(...),
+    file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Form(None),
+):
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Name is required.")
+
+    img_bgr = None
+    if file:
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    elif image_base64:
+        if "," in image_base64:
+            image_base64 = image_base64.split(",")[1]
+        img_data = base64.b64decode(image_base64)
+        nparr = np.frombuffer(img_data, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    else:
+        raise HTTPException(status_code=400, detail="No image file or base64 data provided.")
+
+    success, msg = db.enroll_from_image_array(img_bgr, name.strip(), ai_app)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+    db_sql.upsert_person(name.strip(), vector_count=int(np.sum(db.names == name.strip())))
+    return {"success": True, "message": msg}
+
+@app.post("/api/enroll-batch")
+async def enroll_batch(files: list[UploadFile] = File(...)):
+    results = []
+    for file in files:
+        raw_name = os.path.splitext(file.filename)[0]
+        parts = raw_name.rsplit("_", 1)
+        person_name = parts[0] if len(parts) == 2 and parts[1].isdigit() else raw_name
+        person_name = person_name.replace("-", " ").replace("_", " ").title()
+
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if img_bgr is None:
+            results.append({"filename": file.filename, "name": person_name, "success": False, "message": "Invalid image format"})
+            continue
+
+        success, msg = db.enroll_from_image_array(img_bgr, person_name, ai_app)
+        if success:
+            db_sql.upsert_person(person_name, vector_count=int(np.sum(db.names == person_name)))
+        results.append({"filename": file.filename, "name": person_name, "success": success, "message": msg})
+
+    return {"results": results, "total_persons": len(np.unique(db.names)), "total_vectors": len(db.embeddings)}
+
+@app.delete("/api/person/{name}")
+def delete_person(name: str):
+    removed = db.remove_person(name)
+    db_sql.delete_person(name)
+    if removed == 0:
+        raise HTTPException(status_code=404, detail="Person not found.")
+    return {"success": True, "message": f"Removed {removed} vector embeddings for '{name}'."}
+
+@app.post("/api/recognize-frame")
+async def recognize_frame(data: dict):
+    image_base64 = data.get("image")
+    threshold = data.get("threshold", 0.50)
+    if not image_base64:
+        raise HTTPException(status_code=400, detail="Missing frame image.")
+
+    if "," in image_base64:
+        image_base64 = image_base64.split(",")[1]
+
+    img_bytes = base64.b64decode(image_base64)
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        return {"detections": []}
+
+    faces = ai_app.get(frame)
+    raw_dets = []
+    for face in faces:
+        bbox = face.bbox.astype(int).tolist()
+        name, score = db.recognize(face.embedding, threshold=threshold)
+        raw_dets.append({"bbox": bbox, "name": name, "score": score})
+
+    tracked_dets = global_tracker.update(raw_dets)
+
+    for det in tracked_dets:
+        x1, y1, x2, y2 = det["bbox"]
+        name = det["name"]
+        score = det["score"]
+        tid = det["track_id"]
+
+        color = (0, 200, 0) if name != "Unknown" else (0, 0, 220)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        draw_fancy_label(frame, f"#{tid} {name} {score:.0%}", x1, y1, color)
+        global_logger.mark(name)
+
+    global_logger.save_csv()
+
+    _, buffer = cv2.imencode(".jpg", frame)
+    annotated_b64 = base64.b64encode(buffer).decode("utf-8")
+
+    return {
+        "annotated_image": f"data:image/jpeg;base64,{annotated_b64}",
+        "detections": tracked_dets,
+    }
+
+@app.get("/api/videos")
+def get_videos():
+    input_vids = [f for f in os.listdir("input_videos") if f.endswith((".mp4", ".avi", ".mkv", ".mov"))]
+    output_vids = [f for f in os.listdir("output_videos") if f.endswith((".mp4", ".avi", ".mkv", ".mov"))]
+    return {"input_videos": input_vids, "output_videos": output_vids}
+
+def run_video_processing_task(job_id: str, video_filename: str, threshold: float, submit_every_n: int):
+    input_path = os.path.join("input_videos", video_filename)
+    out_filename = f"annotated_{video_filename}"
+    out_path = os.path.join("output_videos", out_filename)
+
+    cap = cv2.VideoCapture(input_path)
+    if not cap.isOpened():
+        video_jobs[job_id] = {"status": "error", "message": "Cannot open video file."}
+        return
+
+    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+
+    tracker = FaceTracker(iou_threshold=0.3)
+    logger = AttendanceLogger()
+
+    frame_idx = 0
+    cached_dets = []
+    t_start = time.time()
+
+    video_jobs[job_id] = {
+        "status": "processing",
+        "progress": 0,
+        "current_frame": 0,
+        "total_frames": total_frames,
+        "output_file": out_filename,
+    }
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_idx % submit_every_n == 0:
+            faces = ai_app.get(frame)
+            raw_dets = []
+            for face in faces:
+                bbox = face.bbox.astype(int).tolist()
+                name, score = db.recognize(face.embedding, threshold=threshold)
+                raw_dets.append({"bbox": bbox, "name": name, "score": score})
+            cached_dets = tracker.update(raw_dets)
+
+        for det in cached_dets:
+            x1, y1, x2, y2 = det["bbox"]
+            name = det["name"]
+            score = det["score"]
+            tid = det["track_id"]
+
+            color = (0, 200, 0) if name != "Unknown" else (0, 0, 220)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            label = f"#{tid} {name} {score:.0%}"
+            draw_fancy_label(frame, label, x1, y1, color)
+            logger.mark(name, video_time_str=f"{frame_idx / fps:.1f}s", frame_idx=frame_idx)
+
+        out.write(frame)
+        frame_idx += 1
+
+        if frame_idx % 10 == 0 or frame_idx == total_frames:
+            progress_pct = int((frame_idx / max(1, total_frames)) * 100)
+            video_jobs[job_id].update({
+                "progress": progress_pct,
+                "current_frame": frame_idx,
+            })
+
+    cap.release()
+    out.release()
+    logger.save_csv()
+
+    video_jobs[job_id].update({
+        "status": "completed",
+        "progress": 100,
+        "total_time": round(time.time() - t_start, 2),
+        "output_file": out_filename,
+        "output_url": f"/output_videos/{out_filename}",
+        "attendance": logger.seen_today,
+    })
+
+@app.post("/api/process-video")
+async def process_video(
+    background_tasks: BackgroundTasks = None,
+    filename: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    threshold: float = Form(0.50),
+    submit_every_n: int = Form(2),
+):
+    target_filename = None
+    if file:
+        target_filename = file.filename
+        save_path = os.path.join("input_videos", target_filename)
+        contents = await file.read()
+        with open(save_path, "wb") as f:
+            f.write(contents)
+    elif filename:
+        target_filename = filename
+
+    if not target_filename or not os.path.exists(os.path.join("input_videos", target_filename)):
+        raise HTTPException(status_code=400, detail="Target video file not found.")
+
+    job_id = f"job_{int(time.time()*1000)}"
+    asyncio.create_task(asyncio.to_thread(run_video_processing_task, job_id, target_filename, threshold, submit_every_n))
+
+    return {"job_id": job_id, "status": "started"}
+
+@app.get("/api/job-status/{job_id}")
+def get_job_status(job_id: str):
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+    return video_jobs[job_id]
+
+@app.get("/api/attendance")
+def get_attendance():
+    log_dir = "attendance_logs"
+    if not os.path.exists(log_dir):
+        return {"files": [], "logs": []}
+
+    csv_files = sorted([f for f in os.listdir(log_dir) if f.endswith(".csv")], reverse=True)
+    logs = []
+    if csv_files:
+        latest_file = os.path.join(log_dir, csv_files[0])
+        df = pd.read_csv(latest_file)
+        logs = df.to_dict(orient="records")
+
+    return {"files": csv_files, "latest_logs": logs}
+
+from pdf_generator import generate_pdf_report
+
+@app.get("/api/download-attendance/{filename}")
+def download_attendance(filename: str):
+    file_path = os.path.join("attendance_logs", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="CSV file not found.")
+    return FileResponse(file_path, media_type="text/csv", filename=filename)
+
+@app.get("/api/generate-pdf/{filename}")
+def download_pdf_attendance(filename: str):
+    csv_path = os.path.join("attendance_logs", filename)
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="CSV file not found.")
+
+    pdf_path = generate_pdf_report(csv_path)
+    pdf_filename = os.path.basename(pdf_path)
+    return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_filename)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

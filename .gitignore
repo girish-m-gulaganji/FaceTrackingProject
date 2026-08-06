@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Models & Weights
+*.onnx
+*.engine
+.insightface/
+
+# System / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Video outputs & large uploads
+input_videos/*
+output_videos/*
+!input_videos/.gitkeep
+!output_videos/.gitkeep

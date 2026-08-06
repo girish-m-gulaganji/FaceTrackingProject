@@ -1,0 +1,257 @@
+import os
+import sys
+import time
+import csv
+import threading
+from datetime import datetime
+from collections import deque
+import cv2
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from insightface.app import FaceAnalysis
+
+def get_execution_context():
+    """Detect GPU availability and return ctx_id (0=GPU, -1=CPU)."""
+    try:
+        import onnxruntime as ort
+        providers = ort.get_available_providers()
+        if "CUDAExecutionProvider" in providers:
+            return 0
+    except Exception:
+        pass
+    return -1
+
+def load_insightface_app(det_size=(640, 640)):
+    """Initialize InsightFace FaceAnalysis engine."""
+    ctx_id = get_execution_context()
+    provider = "CUDAExecutionProvider" if ctx_id == 0 else "CPUExecutionProvider"
+    app = FaceAnalysis(name="buffalo_l", providers=[provider])
+    app.prepare(ctx_id=ctx_id, det_size=det_size)
+    return app, ctx_id
+
+def draw_fancy_label(frame, text, x, y, color, font_scale=0.65, thickness=2):
+    """Draw a styled text label with a filled background rectangle."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (tw, th), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    pad = 6
+    y_top = max(y - th - 2 * pad, 0)
+
+    cv2.rectangle(
+        frame,
+        (x, y_top),
+        (x + tw + 2 * pad, y_top + th + 2 * pad + baseline),
+        color, -1
+    )
+    brightness = (color[0] * 0.114 + color[1] * 0.587 + color[2] * 0.299)
+    txt_clr = (0, 0, 0) if brightness > 127 else (255, 255, 255)
+
+    cv2.putText(
+        frame, text,
+        (x + pad, y_top + th + pad),
+        font, font_scale, txt_clr, thickness, cv2.LINE_AA
+    )
+
+class FaceDatabase:
+    """Persistent face database with live enrollment and similarity matching."""
+
+    def __init__(self, db_path="dataset/embeddings/embeddings.npz"):
+        self.db_path = db_path
+        self.embeddings = np.empty((0, 512), dtype=np.float32)
+        self.names = np.array([], dtype=str)
+        self.metadata = {}
+        self.load()
+
+    def load(self):
+        if os.path.exists(self.db_path):
+            data = np.load(self.db_path, allow_pickle=True)
+            self.embeddings = data["embeddings"]
+            self.names = data["names"]
+            if "metadata" in data and data["metadata"].ndim == 0:
+                self.metadata = data["metadata"].item()
+
+    def save(self):
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        np.savez(
+            self.db_path,
+            embeddings=self.embeddings,
+            names=self.names,
+            metadata=self.metadata,
+        )
+
+    def enroll_from_image_array(self, img_bgr, person_name, app):
+        """Enroll face from BGR image array."""
+        if img_bgr is None:
+            return False, "Invalid image data."
+
+        faces = app.get(img_bgr)
+        if not faces:
+            return False, "No face detected in the image."
+
+        # Select largest face
+        faces.sort(
+            key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]),
+            reverse=True,
+        )
+
+        embedding = faces[0].embedding.reshape(1, -1)
+
+        if len(self.embeddings) > 0:
+            self.embeddings = np.vstack([self.embeddings, embedding])
+            self.names = np.append(self.names, person_name)
+        else:
+            self.embeddings = embedding
+            self.names = np.array([person_name])
+
+        self.metadata[person_name] = {
+            "enrolled_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "num_embeddings": int(np.sum(self.names == person_name)),
+        }
+
+        self.save()
+        return True, f"Successfully enrolled '{person_name}'."
+
+    def remove_person(self, person_name):
+        """Remove all embeddings for a person."""
+        mask = self.names != person_name
+        removed = np.sum(~mask)
+        self.embeddings = self.embeddings[mask]
+        self.names = self.names[mask]
+        self.metadata.pop(person_name, None)
+        self.save()
+        return removed
+
+    def recognize(self, embedding, threshold=0.50):
+        """Match single face embedding against database."""
+        if len(self.embeddings) == 0:
+            return "Unknown", 0.0
+
+        sims = cosine_similarity([embedding], self.embeddings)[0]
+        best_idx = int(np.argmax(sims))
+        best_sim = float(sims[best_idx])
+
+        if best_sim >= threshold:
+            return str(self.names[best_idx]), best_sim
+        return "Unknown", best_sim
+
+class FaceTracker:
+    """IoU-based face tracker for smooth track IDs."""
+
+    def __init__(self, iou_threshold=0.3, max_disappeared=15):
+        self.next_id = 0
+        self.tracks = {}
+        self.iou_threshold = iou_threshold
+        self.max_disappeared = max_disappeared
+
+    def _iou(self, boxA, boxB):
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[2], boxB[2])
+        yB = min(boxA[3], boxB[3])
+
+        inter = max(0, xB - xA) * max(0, yB - yA)
+        areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+        areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+
+        union = areaA + areaB - inter
+        return inter / union if union > 0 else 0
+
+    def update(self, detections):
+        for tid in self.tracks:
+            self.tracks[tid]["missing"] += 1
+
+        matched_tracks = set()
+        matched_dets = set()
+
+        for d_idx, det in enumerate(detections):
+            best_tid = None
+            best_iou = self.iou_threshold
+
+            for tid, track in self.tracks.items():
+                if tid in matched_tracks:
+                    continue
+                iou = self._iou(det["bbox"], track["bbox"])
+                if iou > best_iou:
+                    best_iou = iou
+                    best_tid = tid
+
+            if best_tid is not None:
+                self.tracks[best_tid].update({
+                    "bbox": det["bbox"],
+                    "name": det["name"],
+                    "score": det["score"],
+                    "missing": 0,
+                })
+                matched_tracks.add(best_tid)
+                matched_dets.add(d_idx)
+
+        for d_idx, det in enumerate(detections):
+            if d_idx not in matched_dets:
+                self.tracks[self.next_id] = {
+                    "bbox": det["bbox"],
+                    "name": det["name"],
+                    "score": det["score"],
+                    "missing": 0,
+                }
+                self.next_id += 1
+
+        stale = [tid for tid, t in self.tracks.items() if t["missing"] > self.max_disappeared]
+        for tid in stale:
+            del self.tracks[tid]
+
+        results = []
+        for tid, track in self.tracks.items():
+            if track["missing"] == 0:
+                results.append({
+                    "track_id": tid,
+                    "bbox": track["bbox"],
+                    "name": track["name"],
+                    "score": track["score"],
+                })
+
+        return results
+
+from db_manager import DatabaseManager
+db_sql = DatabaseManager()
+
+class AttendanceLogger:
+    """Logs person appearances with timestamps, exports to CSV, and saves to SQLite database."""
+
+    def __init__(self, log_dir="attendance_logs"):
+        self.log_dir = log_dir
+        self.seen_today = {}
+        os.makedirs(log_dir, exist_ok=True)
+
+    def mark(self, name, video_time_str="N/A", frame_idx=0, source_file="N/A"):
+        if name == "Unknown":
+            return False
+
+        if name not in self.seen_today:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.seen_today[name] = {
+                "timestamp": timestamp,
+                "video_time": video_time_str,
+                "frame": frame_idx,
+            }
+            try:
+                db_sql.log_attendance(name, status="Present", timestamp=timestamp, video_time=video_time_str, frame_number=frame_idx, source_file=source_file)
+            except Exception as e:
+                print(f"[WARN] DB logging notice: {e}")
+            return True
+        return False
+
+    def save_csv(self, filename=None):
+        if filename is None:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            filename = f"attendance_{date_str}.csv"
+
+        filepath = os.path.join(self.log_dir, filename)
+
+        with open(filepath, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Name", "Status", "Timestamp", "Video Time", "Frame"])
+            for name, info in sorted(self.seen_today.items()):
+                writer.writerow([
+                    name, "Present", info["timestamp"],
+                    info["video_time"], info["frame"],
+                ])
+        return filepath

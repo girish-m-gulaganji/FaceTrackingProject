@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionTrack AI — Next-Gen Face Intelligence Platform</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">⚡</div>
+                <div class="brand-text">
+                    <h2>VisionTrack AI</h2>
+                    <span>FACE INTELLIGENCE PLATFORM</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-view="view-dashboard">
+                    <span class="icon">📊</span> System Dashboard
+                </button>
+                <button class="nav-btn" data-view="view-enroll">
+                    <span class="icon">👤</span> Face Registration
+                </button>
+                <button class="nav-btn" data-view="view-video">
+                    <span class="icon">🎬</span> Video Tracking Engine
+                </button>
+                <button class="nav-btn" data-view="view-webcam">
+                    <span class="icon">📷</span> Live Camera Feed
+                </button>
+                <button class="nav-btn" data-view="view-attendance">
+                    <span class="icon">📄</span> Attendance Reports
+                </button>
+            </nav>
+
+            <div class="sidebar-status">
+                <div class="status-indicator">
+                    <span class="status-dot green"></span>
+                    <span id="hardware-engine">Hardware: CPU Mode</span>
+                </div>
+                <div class="status-details">
+                    <div>Enrolled: <strong id="sidebar-enrolled">0</strong></div>
+                    <div>Vectors: <strong id="sidebar-vectors">0</strong></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Session Bar -->
+            <div class="top-session-bar">
+                <div class="user-badge">
+                    <span class="user-icon">👤</span>
+                    <span>Admin User: <strong id="session-username">admin</strong></span>
+                </div>
+                <button class="btn btn-secondary" onclick="logoutAdmin()" style="padding:0.4rem 0.9rem; font-size:0.85rem;">🔒 Logout</button>
+            </div>
+            
+            <!-- VIEW 1: DASHBOARD -->
+            <section id="view-dashboard" class="view-panel active">
+                <div class="hero-card">
+                    <div class="hero-header">
+                        <h1 class="hero-title">⚡ VisionTrack AI Dashboard</h1>
+                        <p class="hero-subtitle">Real-time InsightFace Recognition • IoU Multi-Object Tracking • Automated Attendance System</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-hardware">CPU</div>
+                        <div class="stat-label">Inference Engine</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-persons">0</div>
+                        <div class="stat-label">Enrolled Individuals</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-vectors">0</div>
+                        <div class="stat-label">512-D ArcFace Vectors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-reports">0</div>
+                        <div class="stat-label">CSV Reports Saved</div>
+                    </div>
+                </div>
+
+                <div class="card-panel">
+                    <div class="panel-header">
+                        <h3>📋 Registered Persons Database</h3>
+                        <button class="btn btn-secondary" onclick="loadPersons()">🔄 Refresh DB</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Person Name</th>
+                                    <th>Department</th>
+                                    <th>Role</th>
+                                    <th>Embedding Samples</th>
+                                    <th>Enrolled Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="persons-table-body">
+                                <tr>
+                                    <td colspan="6" class="text-center">Loading database...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 2: FACE REGISTRATION -->
+            <section id="view-enroll" class="view-panel">
+                <div class="hero-card">
+                    <h1 class="hero-title">👤 Face Registration & Database</h1>
+                    <p class="hero-subtitle">Extract 512-D ArcFace vectors from image files or webcam snapshots</p>
+                </div>
+
+                <div class="grid-2col">
+                    <!-- Option A: File Upload -->
+                    <div class="card-panel">
+                        <h3>📁 Upload Photo</h3>
+                        <form id="form-file-enroll" class="form-layout">
+                            <div class="form-group">
+                                <label for="enroll-name-file">Full Person Name</label>
+                                <input type="text" id="enroll-name-file" placeholder="e.g. Alice Smith" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="enroll-file">Select Image (JPG, PNG)</label>
+                                <input type="file" id="enroll-file" accept="image/*" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">✨ Register & Extract Embedding</button>
+                        </form>
+                        <div id="file-enroll-alert" class="alert-box"></div>
+                    </div>
+
+                    <!-- Option B: Webcam Snapshot -->
+                    <div class="card-panel">
+                        <h3>📸 Live Webcam Snapshot</h3>
+                        <div class="webcam-box">
+                            <video id="enroll-webcam-video" autoplay playsinline muted></video>
+                            <canvas id="enroll-canvas" style="display:none;"></canvas>
+                        </div>
+                        <div class="form-layout">
+                            <div class="form-group">
+                                <label for="enroll-name-cam">Full Person Name</label>
+                                <input type="text" id="enroll-name-cam" placeholder="e.g. Bob Johnson">
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="startEnrollWebcam()">🎥 Start Camera</button>
+                                <button type="button" class="btn btn-primary" onclick="captureAndEnrollWebcam()">📸 Capture & Register</button>
+                            </div>
+                        </div>
+                        <div id="cam-enroll-alert" class="alert-box"></div>
+                    </div>
+                </div>
+
+                <!-- Option C: Bulk Multi-File Batch Upload -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <h3>📦 Bulk Multi-File Batch Enrollment</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Select multiple photos at once. Names will be automatically extracted from image filenames (e.g., <code>Alex.jpg</code> &rarr; Alex, <code>Sarah_1.png</code> &rarr; Sarah).</p>
+                    <form id="form-batch-enroll" class="form-layout">
+                        <div class="form-group">
+                            <label for="batch-files">Select Multiple Face Photos</label>
+                            <input type="file" id="batch-files" accept="image/*" multiple required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">⚡ Bulk Register All Selected Photos</button>
+                    </form>
+                    <div id="batch-enroll-alert" class="alert-box"></div>
+                    <div id="batch-enroll-results" style="margin-top:1rem;"></div>
+                </div>
+            </section>
+
+            <!-- VIEW 3: VIDEO TRACKING ENGINE -->
+            <section id="view-video" class="view-panel">
+                <div class="hero-card">
+                    <h1 class="hero-title">🎬 Video Tracking Engine</h1>
+                    <p class="hero-subtitle">High-speed InsightFace detection with IoU object tracking & timestamped attendance</p>
+                </div>
+
+                <div class="card-panel">
+                    <h3>⚙️ Video Analysis Configuration</h3>
+                    <form id="form-process-video" class="form-layout">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="video-file-input">Upload Video File (MP4, AVI)</label>
+                                <input type="file" id="video-file-input" accept="video/*">
+                            </div>
+                            <div class="form-group">
+                                <label for="video-select-existing">Or Select Existing Video</label>
+                                <select id="video-select-existing">
+                                    <option value="">-- Select from input_videos --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="video-thresh">Recognition Threshold: <span id="thresh-val">0.50</span></label>
+                                <input type="range" id="video-thresh" min="0.30" max="0.85" step="0.05" value="0.50" oninput="document.getElementById('thresh-val').innerText=this.value">
+                            </div>
+                            <div class="form-group">
+                                <label for="video-interval">Detection Sampling Interval (Frames): <span id="interval-val">2</span></label>
+                                <input type="range" id="video-interval" min="1" max="5" step="1" value="2" oninput="document.getElementById('interval-val').innerText=this.value">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-large">🚀 Start Video Analysis Engine</button>
+                    </form>
+
+                    <!-- Progress Indicator -->
+                    <div id="video-progress-container" class="progress-box" style="display:none;">
+                        <div class="progress-bar-wrap">
+                            <div id="video-progress-bar" class="progress-bar-fill"></div>
+                        </div>
+                        <div id="video-progress-text" class="progress-text">Processing 0%...</div>
+                    </div>
+
+                    <div id="video-output-alert" class="alert-box"></div>
+
+                    <!-- Video Output Result Panel -->
+                    <div id="video-result-panel" class="card-panel" style="display:none; margin-top:1.5rem; background:rgba(2,44,34,0.8);">
+                        <div class="panel-header">
+                            <h3 id="video-result-title">🎬 Processed Video Output</h3>
+                            <a id="btn-download-video" class="btn btn-primary" href="#" download>📥 Download Processed Video</a>
+                        </div>
+                        <div class="webcam-box" style="margin-bottom:1rem;">
+                            <video id="video-result-player" controls style="width:100%; max-height:480px;"></video>
+                        </div>
+                        <div id="video-attendance-summary"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 4: LIVE WEBCAM SURVEILLANCE -->
+            <section id="view-webcam" class="view-panel">
+                <div class="hero-card">
+                    <h1 class="hero-title">📷 Live Camera Surveillance</h1>
+                    <p class="hero-subtitle">Real-time camera feed face recognition with instant attendance marking</p>
+                </div>
+
+                <div class="card-panel">
+                    <div class="panel-header">
+                        <h3>Live Camera Feed</h3>
+                        <div class="btn-group">
+                            <button id="btn-toggle-live" class="btn btn-primary" onclick="toggleLiveSurveillance()">🔴 Turn On Camera Feed</button>
+                        </div>
+                    </div>
+
+                    <div class="live-stream-box">
+                        <video id="live-webcam-element" autoplay playsinline muted style="display:none;"></video>
+                        <img id="live-annotated-output" alt="Live Camera Recognition" class="live-preview-img">
+                        <canvas id="live-canvas" style="display:none;"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 5: ATTENDANCE REPORTS -->
+            <section id="view-attendance" class="view-panel">
+                <div class="hero-card">
+                    <h1 class="hero-title">📄 Attendance Reports</h1>
+                    <p class="hero-subtitle">Inspect, filter, and export CSV attendance sheets</p>
+                </div>
+
+                <div class="card-panel">
+                    <div class="panel-header">
+                        <div class="form-group inline-group">
+                            <label for="select-csv-log">Select Report:</label>
+                            <select id="select-csv-log" onchange="loadAttendanceDetails(this.value)">
+                                <option value="">Loading logs...</option>
+                            </select>
+                        </div>
+                        <div class="btn-group">
+                            <a id="btn-download-csv" href="#" class="btn btn-secondary" target="_blank" style="display:none;">📥 Download CSV Sheet</a>
+                            <a id="btn-download-pdf" href="#" class="btn btn-primary" target="_blank" style="display:none;">📄 Download Official PDF Report</a>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Timestamp</th>
+                                    <th>Video Time</th>
+                                    <th>Frame #</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center">No attendance record selected.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Admin Login Screen Overlay Modal -->
+    <div id="login-modal" class="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="lock-avatar">🔐</div>
+                <h2>Admin Portal Login</h2>
+                <p>Enter your administrative credentials to access VisionTrack AI</p>
+            </div>
+            <form id="form-admin-login" class="form-layout">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" placeholder="admin" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-large" style="width:100%; margin-top:0.5rem;">🔑 Login to Dashboard</button>
+            </form>
+            <div id="login-alert" class="alert-box"></div>
+            <div class="login-footer">
+                <span>Default Credentials: <code>admin</code> / <code>admin123</code></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
