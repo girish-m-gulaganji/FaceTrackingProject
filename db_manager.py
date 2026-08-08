@@ -129,6 +129,33 @@ class DatabaseManager:
                 "today_present": today_present
             }
 
+    def get_daily_attendance_trend(self, days: int = 7):
+        """Retrieve daily attendance count for the last N days."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DATE(timestamp) as date, COUNT(DISTINCT person_name) as count
+                FROM attendance_logs
+                GROUP BY DATE(timestamp)
+                ORDER BY date DESC
+                LIMIT ?
+            """, (days,))
+            rows = cursor.fetchall()
+            return [{"date": row["date"], "count": row["count"]} for row in reversed(rows)]
+
+    def get_department_breakdown(self):
+        """Retrieve count of present persons grouped by department."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(p.department, 'General') as department, COUNT(DISTINCT a.person_name) as count
+                FROM attendance_logs a
+                LEFT JOIN persons p ON a.person_name = p.name
+                GROUP BY department
+            """);
+            rows = cursor.fetchall()
+            return [{"department": row["department"], "count": row["count"]} for row in rows]
+
     # --- Audit Logging ---
     def log_audit(self, action: str, details: str = None):
         """Log system audit event."""

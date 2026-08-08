@@ -96,6 +96,7 @@ function initNavigation() {
             if (targetView === 'view-dashboard') {
                 loadStats();
                 loadPersons();
+                loadAnalyticsCharts();
             } else if (targetView === 'view-video') {
                 loadVideosList();
             } else if (targetView === 'view-attendance') {
@@ -595,4 +596,86 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// Load Interactive Chart.js Analytics
+let trendChart = null;
+let deptChart = null;
+
+async function loadAnalyticsCharts() {
+    try {
+        const res = await fetch('/api/analytics');
+        const data = await res.json();
+
+        // 1. Line Chart: Daily Trends
+        const trendCanvas = document.getElementById('chart-attendance-trend');
+        if (!trendCanvas) return;
+        const trendCtx = trendCanvas.getContext('2d');
+        const labels = data.daily_trends && data.daily_trends.length > 0
+            ? data.daily_trends.map(t => t.date)
+            : ['Today'];
+        const values = data.daily_trends && data.daily_trends.length > 0
+            ? data.daily_trends.map(t => t.count)
+            : [1];
+
+        if (trendChart) trendChart.destroy();
+        trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Present Attendees',
+                    data: values,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#fbbf24'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#fef08a' } } },
+                scales: {
+                    x: { ticks: { color: '#fef08a' }, grid: { color: 'rgba(245, 158, 11, 0.1)' } },
+                    y: { ticks: { color: '#fef08a', stepSize: 1 }, grid: { color: 'rgba(245, 158, 11, 0.1)' } }
+                }
+            }
+        });
+
+        // 2. Doughnut Chart: Department Breakdown
+        const deptCanvas = document.getElementById('chart-department-breakdown');
+        if (!deptCanvas) return;
+        const deptCtx = deptCanvas.getContext('2d');
+        const deptLabels = data.department_breakdown && data.department_breakdown.length > 0
+            ? data.department_breakdown.map(d => d.department)
+            : ['General'];
+        const deptValues = data.department_breakdown && data.department_breakdown.length > 0
+            ? data.department_breakdown.map(d => d.count)
+            : [1];
+
+        if (deptChart) deptChart.destroy();
+        deptChart = new Chart(deptCtx, {
+            type: 'doughnut',
+            data: {
+                labels: deptLabels,
+                datasets: [{
+                    data: deptValues,
+                    backgroundColor: ['#f59e0b', '#fbbf24', '#d97706', '#fde047', '#b45309'],
+                    borderWidth: 2,
+                    borderColor: '#140f00'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: '#fef08a' } } }
+            }
+        });
+
+    } catch (err) {
+        console.error('Failed to load analytics charts:', err);
+    }
 }

@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/styles.css">
+    <!-- Chart.js CDN for Interactive Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -89,6 +91,26 @@
                     <div class="stat-card">
                         <div class="stat-value" id="stat-reports">0</div>
                         <div class="stat-label">CSV Reports Saved</div>
+                    </div>
+                </div>
+
+                <!-- Interactive Visual Analytics Charts Grid -->
+                <div class="grid-2col" style="margin-bottom: 2rem;">
+                    <div class="card-panel" style="margin-bottom:0;">
+                        <div class="panel-header">
+                            <h3>📈 Daily Attendance Trend</h3>
+                        </div>
+                        <div style="position:relative; height:240px;">
+                            <canvas id="chart-attendance-trend"></canvas>
+                        </div>
+                    </div>
+                    <div class="card-panel" style="margin-bottom:0;">
+                        <div class="panel-header">
+                            <h3>🏢 Department Breakdown</h3>
+                        </div>
+                        <div style="position:relative; height:240px; display:flex; justify-content:center;">
+                            <canvas id="chart-department-breakdown"></canvas>
+                        </div>
                     </div>
                 </div>
 

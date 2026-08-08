@@ -93,6 +93,9 @@ for person in np.unique(db.names):
     vec_count = int(np.sum(db.names == person))
     db_sql.upsert_person(person, vector_count=vec_count)
 
+from email_notifier import EmailNotifier
+email_notifier = EmailNotifier()
+
 @app.get("/api/stats")
 def get_stats():
     log_files = [f for f in os.listdir("attendance_logs") if f.endswith(".csv")] if os.path.exists("attendance_logs") else []
@@ -105,6 +108,24 @@ def get_stats():
         "csv_reports": len(log_files),
         "db_stats": sql_stats,
     }
+
+@app.get("/api/analytics")
+def get_analytics():
+    trends = db_sql.get_daily_attendance_trend(days=7)
+    depts = db_sql.get_department_breakdown()
+    return {
+        "daily_trends": trends,
+        "department_breakdown": depts,
+    }
+
+@app.get("/api/notifications")
+def get_notification_settings():
+    return email_notifier.config
+
+@app.post("/api/notifications")
+def update_notification_settings(config: dict):
+    updated = email_notifier.save_config(config)
+    return {"success": True, "config": updated}
 
 @app.get("/api/persons")
 def get_persons():
