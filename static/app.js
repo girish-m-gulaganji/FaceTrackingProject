@@ -550,6 +550,7 @@ async function loadAttendanceDetails(filename) {
 
     const downloadBtn = document.getElementById('btn-download-csv');
     const downloadPdfBtn = document.getElementById('btn-download-pdf');
+    const downloadExcelBtn = document.getElementById('btn-download-excel');
 
     downloadBtn.href = `/api/download-attendance/${encodeURIComponent(filename)}`;
     downloadBtn.style.display = 'inline-flex';
@@ -557,6 +558,11 @@ async function loadAttendanceDetails(filename) {
     if (downloadPdfBtn) {
         downloadPdfBtn.href = `/api/generate-pdf/${encodeURIComponent(filename)}`;
         downloadPdfBtn.style.display = 'inline-flex';
+    }
+
+    if (downloadExcelBtn) {
+        downloadExcelBtn.href = `/api/generate-excel/${encodeURIComponent(filename)}`;
+        downloadExcelBtn.style.display = 'inline-flex';
     }
 
     try {
@@ -678,4 +684,42 @@ async function loadAnalyticsCharts() {
     } catch (err) {
         console.error('Failed to load analytics charts:', err);
     }
+}
+
+// RTSP CCTV Stream Form Submit
+const formRtsp = document.getElementById('form-process-rtsp');
+if (formRtsp) {
+    formRtsp.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('rtsp-url-input').value.trim();
+        const duration = document.getElementById('rtsp-duration').value;
+        const alertBox = document.getElementById('rtsp-alert');
+
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-info';
+        alertBox.innerText = '🎥 Connecting to RTSP / IP CCTV Camera stream... Please wait.';
+
+        const formData = new FormData();
+        formData.append('rtsp_url', url);
+        formData.append('duration_seconds', duration);
+
+        try {
+            const res = await fetch('/api/process-rtsp', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = `✅ RTSP Stream complete! Tracked ${data.present_persons.length} attendees (${data.present_persons.join(', ') || 'None'}).`;
+                loadAttendanceList();
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = `❌ RTSP Stream Error: ${data.detail || 'Could not connect'}`;
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error connecting to RTSP stream: ${err.message}`;
+        }
+    });
 }

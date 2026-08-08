@@ -261,10 +261,28 @@
                         </div>
                         <div id="video-attendance-summary"></div>
                     </div>
+                <!-- RTSP / CCTV Stream Processor -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <h3>📡 Real-Time RTSP / IP CCTV Camera Stream Analysis</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Connect directly to IP security cameras or RTSP video streams (e.g., <code>rtsp://admin:pass@192.168.1.100:554/stream1</code>).</p>
+                    <form id="form-process-rtsp" class="form-layout">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="rtsp-url-input">RTSP / IP Camera Stream URL</label>
+                                <input type="text" id="rtsp-url-input" placeholder="rtsp://admin:pass@192.168.1.100:554/stream1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="rtsp-duration">Capture Duration (Seconds)</label>
+                                <input type="number" id="rtsp-duration" value="15" min="5" max="120" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">🎥 Connect & Track RTSP CCTV Stream</button>
+                    </form>
+                    <div id="rtsp-alert" class="alert-box"></div>
                 </div>
             </section>
 
-            <!-- VIEW 4: LIVE WEBCAM SURVEILLANCE -->
+            <!-- VIEW 4: LIVE CAMERA FEED -->
             <section id="view-webcam" class="view-panel">
                 <div class="hero-card">
                     <h1 class="hero-title">📷 Live Camera Surveillance</h1>
@@ -304,6 +322,7 @@
                         </div>
                         <div class="btn-group">
                             <a id="btn-download-csv" href="#" class="btn btn-secondary" target="_blank" style="display:none;">📥 Download CSV Sheet</a>
+                            <a id="btn-download-excel" href="#" class="btn btn-primary" target="_blank" style="display:none; background: linear-gradient(135deg, #10b981, #059669); color: white; border:none;">📊 Download Excel Sheet</a>
                             <a id="btn-download-pdf" href="#" class="btn btn-primary" target="_blank" style="display:none;">📄 Download Official PDF Report</a>
                         </div>
                     </div>

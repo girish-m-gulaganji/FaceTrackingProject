@@ -51,6 +51,39 @@ def draw_fancy_label(frame, text, x, y, color, font_scale=0.65, thickness=2):
         font, font_scale, txt_clr, thickness, cv2.LINE_AA
     )
 
+def extract_face_attributes(face, frame_shape=None):
+    """Extract age, gender, and occlusion metrics from InsightFace Face object."""
+    age = int(getattr(face, "age", 25))
+    gender_val = getattr(face, "gender", 1)
+    gender = "Male" if gender_val == 1 or gender_val > 0.5 else "Female"
+
+    # Occlusion / Mask Check using bounding box & landmark statistics
+    is_occluded = False
+    bbox = getattr(face, "bbox", [0,0,0,0])
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+
+    if w > 0 and h > 0:
+        aspect_ratio = float(w) / float(h)
+        if aspect_ratio < 0.65 or aspect_ratio > 1.35:
+            is_occluded = True
+
+    kps = getattr(face, "kps", None)
+    if kps is not None and len(kps) >= 5:
+        # Check distance between nose/mouth landmarks
+        nose = kps[2]
+        mouth_l = kps[3]
+        mouth_r = kps[4]
+        mouth_dist = np.linalg.norm(mouth_l - mouth_r)
+        if mouth_dist < (w * 0.15):
+            is_occluded = True
+
+    return {
+        "age": age,
+        "gender": gender,
+        "is_occluded": is_occluded
+    }
+
 class FaceDatabase:
     """Persistent face database with live enrollment and similarity matching."""
 
@@ -254,4 +287,26 @@ class AttendanceLogger:
                     name, "Present", info["timestamp"],
                     info["video_time"], info["frame"],
                 ])
+        return filepath
+
+    def save_excel(self, filename=None):
+        """Export attendance records as an Excel spreadsheet (.xlsx)."""
+        import pandas as pd
+        if filename is None:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            filename = f"attendance_{date_str}.xlsx"
+
+        filepath = os.path.join(self.log_dir, filename)
+        records = []
+        for name, info in sorted(self.seen_today.items()):
+            records.append({
+                "Name": name,
+                "Status": "Present",
+                "Timestamp": info["timestamp"],
+                "Video Time": info["video_time"],
+                "Frame Number": info["frame"],
+            })
+
+        df = pd.DataFrame(records)
+        df.to_excel(filepath, index=False, engine="openpyxl")
         return filepath

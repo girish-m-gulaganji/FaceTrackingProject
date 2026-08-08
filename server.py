@@ -399,6 +399,64 @@ def download_attendance(filename: str):
         raise HTTPException(status_code=404, detail="CSV file not found.")
     return FileResponse(file_path, media_type="text/csv", filename=filename)
 
+@app.get("/api/generate-excel/{filename}")
+def download_excel_attendance(filename: str):
+    csv_path = os.path.join("attendance_logs", filename)
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="CSV file not found.")
+
+    df = pd.read_csv(csv_path)
+    excel_name = filename.replace(".csv", ".xlsx")
+    excel_path = os.path.join("attendance_logs", excel_name)
+    df.to_excel(excel_path, index=False, engine="openpyxl")
+    return FileResponse(excel_path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=excel_name)
+
+@app.post("/api/process-rtsp")
+async def process_rtsp_stream(
+    rtsp_url: str = Form(...),
+    duration_seconds: int = Form(10),
+    threshold: float = Form(0.50)
+):
+    """Process real-time CCTV RTSP/IP camera stream."""
+    cap = cv2.VideoCapture(rtsp_url)
+    if not cap.isOpened():
+        raise HTTPException(status_code=400, detail=f"Cannot connect to RTSP/IP stream: {rtsp_url}")
+
+    start_time = time.time()
+    frames_processed = 0
+    tracker = FaceTracker()
+    logger = AttendanceLogger()
+
+    while (time.time() - start_time) < duration_seconds:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames_processed += 1
+        if frames_processed % 3 != 0:
+            continue
+
+        faces = ai_app.get(frame)
+        raw_dets = []
+        for face in faces:
+            bbox = face.bbox.astype(int).tolist()
+            name, score = db.recognize(face.embedding, threshold=threshold)
+            raw_dets.append({"bbox": bbox, "name": name, "score": score})
+
+        tracked_dets = tracker.update(raw_dets)
+        for det in tracked_dets:
+            logger.mark(det["name"], source_file=f"RTSP:{rtsp_url}")
+
+    cap.release()
+    csv_file = logger.save_csv()
+    return {
+        "success": True,
+        "rtsp_url": rtsp_url,
+        "duration_seconds": duration_seconds,
+        "frames_processed": frames_processed,
+        "present_persons": list(logger.seen_today.keys()),
+        "report_csv": os.path.basename(csv_file)
+    }
+
 @app.get("/api/generate-pdf/{filename}")
 def download_pdf_attendance(filename: str):
     csv_path = os.path.join("attendance_logs", filename)
