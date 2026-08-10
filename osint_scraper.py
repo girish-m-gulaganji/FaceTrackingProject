@@ -7,14 +7,18 @@ import numpy as np
 class OSINTScraper:
     """Public profile scraper and avatar fetcher for OSINT facial recognition."""
 
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
+    }
+
     @staticmethod
     def fetch_github_profile(username: str):
         """Fetch public profile avatar and metadata from GitHub API."""
         api_url = f"https://api.github.com/users/{username}"
-        headers = {"User-Agent": "VisionTrack-OSINT-Engine"}
 
         try:
-            req = urllib.request.Request(api_url, headers=headers)
+            req = urllib.request.Request(api_url, headers=OSINTScraper.HEADERS)
             with urllib.request.urlopen(req, timeout=10) as response:
                 if response.status != 200:
                     return False, f"GitHub user '{username}' not found.", None
@@ -31,7 +35,7 @@ class OSINTScraper:
                 return False, f"No avatar image available for GitHub user '{username}'.", None
 
             # Download avatar image bytes
-            img_req = urllib.request.Request(avatar_url, headers=headers)
+            img_req = urllib.request.Request(avatar_url, headers=OSINTScraper.HEADERS)
             with urllib.request.urlopen(img_req, timeout=10) as img_resp:
                 img_bytes = img_resp.read()
 
@@ -52,10 +56,8 @@ class OSINTScraper:
     @staticmethod
     def fetch_url_profile(name: str, username: str, platform: str, profile_url: str, image_url: str, bio: str = "", location: str = ""):
         """Fetch avatar image bytes from public Web URL and format metadata."""
-        headers = {"User-Agent": "VisionTrack-OSINT-Engine"}
-
         try:
-            req = urllib.request.Request(image_url, headers=headers)
+            req = urllib.request.Request(image_url, headers=OSINTScraper.HEADERS)
             with urllib.request.urlopen(req, timeout=10) as response:
                 img_bytes = response.read()
 
