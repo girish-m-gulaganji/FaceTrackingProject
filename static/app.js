@@ -498,15 +498,17 @@ async function toggleLiveSurveillance() {
         try {
             liveStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
             video.srcObject = liveStream;
+            try { await video.play(); } catch(e) {}
             liveActive = true;
             btn.className = 'btn btn-danger';
             btn.innerText = '⏹️ Stop Camera Feed';
 
             liveInterval = setInterval(async () => {
                 if (!liveActive) return;
+                if (!video.videoWidth || !video.videoHeight) return;
 
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 

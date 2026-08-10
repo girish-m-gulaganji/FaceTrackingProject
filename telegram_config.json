@@ -1,7 +1,7 @@
 {
-    "enabled": true,
+    "enabled": false,
     "bot_token": "8801976823:AAHfC-cC3_rGApPB9wODS_bCQFEcZExgZEo",
-    "chat_id": "",
+    "chat_id": "5430265134",
     "notify_unknown": true,
     "notify_vip": true
 }
