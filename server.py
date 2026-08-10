@@ -209,6 +209,7 @@ from vector_db import VectorDBManager
 from osint_scraper import OSINTScraper
 from liveness_detector import LivenessDetector
 from telegram_notifier import TelegramNotifier
+from occlusion_engine import OcclusionDetector
 
 from scheduler_service import AttendanceReportScheduler
 
@@ -403,6 +404,8 @@ async def recognize_frame(data: dict):
 
         # Anti-Spoofing Liveness Evaluation
         liveness = liveness_engine.check_liveness(frame, bbox)
+        occlusion = OcclusionDetector.detect_mask(frame, bbox)
+
         if not liveness["is_real"]:
             name = f"⚠️ SPOOF ATTACK ({liveness['score']}%)"
         elif name == "Unknown":
@@ -412,7 +415,10 @@ async def recognize_frame(data: dict):
                 name = f"{best['name']} (@{best['username']})"
                 score = best['raw_score']
 
-        raw_dets.append({"bbox": bbox, "name": name, "score": score})
+        if occlusion["is_masked"] and not name.startswith("⚠️"):
+            name = f"😷 {name} [Masked]"
+
+        raw_dets.append({"bbox": bbox, "name": name, "score": score, "is_masked": occlusion["is_masked"]})
 
         # Telegram Security Alert Trigger
         if not liveness["is_real"]:
