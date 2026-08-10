@@ -198,8 +198,21 @@ async def enroll_batch(files: list[UploadFile] = File(...)):
             db_sql.upsert_person(person_name, vector_count=int(np.sum(db.names == person_name)))
 from vector_db import VectorDBManager
 from osint_scraper import OSINTScraper
+from liveness_detector import LivenessDetector
+from telegram_notifier import TelegramNotifier
 
 vector_db = VectorDBManager()
+liveness_engine = LivenessDetector()
+telegram_bot = TelegramNotifier()
+
+@app.get("/api/telegram/settings")
+def get_telegram_settings():
+    return telegram_bot.config
+
+@app.post("/api/telegram/settings")
+def update_telegram_settings(config: dict):
+    updated = telegram_bot.save_config(config)
+    return {"success": True, "config": updated}
 
 @app.post("/api/reverse-search")
 async def reverse_facial_search(
@@ -361,8 +374,11 @@ async def recognize_frame(data: dict):
         bbox = face.bbox.astype(int).tolist()
         name, score = db.recognize(face.embedding, threshold=threshold)
 
-        # OSINT Vector DB Auto-Match for Unknown Faces
-        if name == "Unknown":
+        # Anti-Spoofing Liveness Evaluation
+        liveness = liveness_engine.check_liveness(frame, bbox)
+        if not liveness["is_real"]:
+            name = f"⚠️ SPOOF ATTACK ({liveness['score']}%)"
+        elif name == "Unknown":
             osint_matches = vector_db.search_profile(face.embedding, top_k=1, threshold=0.45)
             if osint_matches:
                 best = osint_matches[0]
@@ -370,6 +386,12 @@ async def recognize_frame(data: dict):
                 score = best['raw_score']
 
         raw_dets.append({"bbox": bbox, "name": name, "score": score})
+
+        # Telegram Security Alert Trigger
+        if not liveness["is_real"]:
+            telegram_bot.send_alert("Anti-Spoofing Security Alert", f"Spoof paper/screen attack detected (Liveness Score: {liveness['score']}%).", frame)
+        elif name == "Unknown":
+            telegram_bot.send_alert("Unknown Person Detected", "Unrecognized person detected in camera feed.", frame)
 
     tracked_dets = global_tracker.update(raw_dets)
 
