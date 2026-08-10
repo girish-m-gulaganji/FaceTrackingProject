@@ -205,7 +205,15 @@ async def enroll_batch(files: list[UploadFile] = File(...)):
         success, msg = db.enroll_from_image_array(img_bgr, person_name, ai_app)
         if success:
             db_sql.upsert_person(person_name, vector_count=int(np.sum(db.names == person_name)))
-from vector_db import VectorDBManager
+from ocr_enrollment import PaperOCREnroller
+
+@app.post("/api/enroll-ocr-document")
+async def enroll_ocr_document(file: UploadFile = File(...), name: str = Form(None)):
+    contents = await file.read()
+    res = PaperOCREnroller.process_paper_document(contents, file.filename, db, ai_app, db_sql, fallback_name=name)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
 from osint_scraper import OSINTScraper
 from liveness_detector import LivenessDetector
 from telegram_notifier import TelegramNotifier

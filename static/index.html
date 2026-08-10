@@ -292,6 +292,26 @@
                     <div id="batch-enroll-alert" class="alert-box"></div>
                     <div id="batch-enroll-results" style="margin-top:1rem;"></div>
                 </div>
+
+                <!-- Option D: Paper Document / PDF OCR Auto-Enrollment -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <h3>📜 Paper Document / PDF OCR Auto-Enrollment</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Upload a photo of a paper document, badge, or PDF page. Our OCR engine automatically extracts written text names and pairs them with face embeddings!</p>
+                    <form id="form-ocr-enroll" class="form-layout">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="ocr-doc-file">Select Paper Photo or PDF Document</label>
+                                <input type="file" id="ocr-doc-file" accept="image/*,.pdf" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ocr-fallback-name">Optional Fallback Name (If paper text unreadable)</label>
+                                <input type="text" id="ocr-fallback-name" placeholder="e.g. John Doe">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">🔍 Extract Written Name via OCR & Register Face</button>
+                    </form>
+                    <div id="ocr-enroll-alert" class="alert-box"></div>
+                </div>
             </section>
 
             <!-- VIEW 3: VIDEO TRACKING ENGINE -->
