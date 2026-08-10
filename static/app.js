@@ -99,6 +99,7 @@ function initNavigation() {
                 loadAuditLogs();
                 loadTelegramSettings();
                 loadSchedulerSettings();
+                loadWebhookSettings();
                 loadAnalyticsCharts();
             } else if (targetView === 'view-video') {
                 loadVideosList();
@@ -1102,6 +1103,78 @@ if (formSchedulerConfig) {
             alertBox.style.display = 'block';
             alertBox.className = 'alert-box alert-danger';
             alertBox.innerText = `❌ Error saving scheduler settings: ${err.message}`;
+        }
+    });
+}
+
+// Load & Save External Webhook Settings
+async function loadWebhookSettings() {
+    try {
+        const res = await fetch('/api/webhooks/settings');
+        const config = await res.json();
+
+        const urlInput = document.getElementById('webhook-url');
+        const secretInput = document.getElementById('webhook-secret');
+        const enableCheck = document.getElementById('webhook-enable');
+
+        if (urlInput) urlInput.value = config.url || '';
+        if (secretInput) secretInput.value = config.secret || '';
+        if (enableCheck) enableCheck.checked = config.enabled || false;
+    } catch (err) {
+        console.error('Failed to load Webhook settings:', err);
+    }
+}
+
+async function triggerTestWebhook() {
+    const alertBox = document.getElementById('webhook-alert');
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = '⚡ Sending test payload to Webhook URL...';
+
+    try {
+        const res = await fetch('/api/webhooks/test', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = `✅ Webhook Test Success! ${data.message}`;
+        } else {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Webhook Test Failed: ${data.message}`;
+        }
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error delivering test webhook: ${err.message}`;
+    }
+}
+
+const formWebhookConfig = document.getElementById('form-webhook-config');
+if (formWebhookConfig) {
+    formWebhookConfig.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('webhook-url').value.trim();
+        const secret = document.getElementById('webhook-secret').value.trim();
+        const enabled = document.getElementById('webhook-enable').checked;
+        const alertBox = document.getElementById('webhook-alert');
+
+        try {
+            const res = await fetch('/api/webhooks/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled, url, secret })
+            });
+            const data = await res.json();
+            alertBox.style.display = 'block';
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = '✅ Saved Webhook settings successfully!';
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = '❌ Failed to save Webhook settings.';
+            }
+        } catch (err) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error saving Webhook settings: ${err.message}`;
         }
     });
 }

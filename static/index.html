@@ -216,8 +216,31 @@
                             </label>
                             <button type="submit" class="btn btn-primary">💾 Save Dispatch Scheduler</button>
                         </div>
+                <!-- External Webhook Integrations Card -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>🔗 External Webhook Integrations (Slack / Discord / Custom API)</h3>
+                        <button class="btn btn-secondary" onclick="triggerTestWebhook()">⚡ Send Test Webhook</button>
+                    </div>
+                    <form id="form-webhook-config" class="form-layout">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="webhook-url">HTTP Webhook Endpoint URL</label>
+                                <input type="url" id="webhook-url" placeholder="e.g. https://hooks.slack.com/services/... or https://discord.com/api/webhooks/..." required>
+                            </div>
+                            <div class="form-group">
+                                <label for="webhook-secret">Webhook Authorization Secret (Optional)</label>
+                                <input type="password" id="webhook-secret" placeholder="e.g. my_secret_token_123">
+                            </div>
+                        </div>
+                        <div class="grid-2col" style="align-items:center;">
+                            <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer;">
+                                <input type="checkbox" id="webhook-enable" style="width:auto;"> Enable Real-Time HTTP Webhook Event Dispatch
+                            </label>
+                            <button type="submit" class="btn btn-primary">💾 Save Webhook Settings</button>
+                        </div>
                     </form>
-                    <div id="schedule-alert" class="alert-box"></div>
+                    <div id="webhook-alert" class="alert-box"></div>
                 </div>
             </section>
 
