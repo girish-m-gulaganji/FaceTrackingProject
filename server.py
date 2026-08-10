@@ -196,9 +196,139 @@ async def enroll_batch(files: list[UploadFile] = File(...)):
         success, msg = db.enroll_from_image_array(img_bgr, person_name, ai_app)
         if success:
             db_sql.upsert_person(person_name, vector_count=int(np.sum(db.names == person_name)))
-        results.append({"filename": file.filename, "name": person_name, "success": success, "message": msg})
+from vector_db import VectorDBManager
+from osint_scraper import OSINTScraper
 
-    return {"results": results, "total_persons": len(np.unique(db.names)), "total_vectors": len(db.embeddings)}
+vector_db = VectorDBManager()
+
+@app.post("/api/reverse-search")
+async def reverse_facial_search(
+    file: UploadFile = File(None),
+    image_url: str = Form(None),
+    threshold: float = Form(0.45)
+):
+    """Reverse facial search against indexed social media profiles & database."""
+    img_bgr = None
+
+    if file:
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    elif image_url:
+        success, _, img_bytes = OSINTScraper.fetch_url_profile("temp", "temp", "temp", image_url, image_url)
+        if success:
+            img_bgr = OSINTScraper.decode_image_bytes(img_bytes)
+
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Invalid image input. Provide a file or image URL.")
+
+    faces = ai_app.get(img_bgr)
+    if not faces:
+        return {"matches": [], "message": "No face detected in target image."}
+
+    faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
+    target_face = faces[0]
+    target_emb = target_face.embedding
+
+    # 1. Search against OSINT Vector Database
+    osint_matches = vector_db.search_profile(target_emb, top_k=5, threshold=threshold)
+
+    # 2. Search against Internal Database
+    internal_name, internal_score = db.recognize(target_emb, threshold=threshold)
+
+    return {
+        "face_detected": True,
+        "internal_match": {
+            "name": internal_name,
+            "similarity_score": round(internal_score * 100, 2) if internal_name != "Unknown" else 0
+        },
+        "osint_matches": osint_matches,
+        "total_osint_indexed": len(vector_db.embeddings)
+    }
+
+@app.post("/api/osint/ingest-github")
+async def osint_ingest_github(username: str = Form(...)):
+    """Ingest public profile avatar and metadata from GitHub by handle."""
+    success, meta, img_bytes = OSINTScraper.fetch_github_profile(username)
+    if not success:
+        raise HTTPException(status_code=400, detail=meta)
+
+    img_bgr = OSINTScraper.decode_image_bytes(img_bytes)
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Failed to decode avatar image.")
+
+    faces = ai_app.get(img_bgr)
+    if not faces:
+        raise HTTPException(status_code=400, detail=f"No face detected in GitHub avatar for '{username}'.")
+
+    faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
+    emb = faces[0].embedding
+
+    profile_rec = vector_db.add_profile(
+        name=meta["name"],
+        username=meta["username"],
+        platform=meta["platform"],
+        profile_url=meta["profile_url"],
+        bio=meta["bio"],
+        location=meta["location"],
+        embedding=emb,
+        avatar_url=meta["avatar_url"]
+    )
+
+    db.enroll_from_image_array(img_bgr, meta["name"], ai_app)
+    db_sql.upsert_person(meta["name"], vector_count=int(np.sum(db.names == meta["name"])))
+
+    return {
+        "success": True,
+        "message": f"Successfully indexed OSINT profile for '{meta['name']}' (@{username})",
+        "profile": profile_rec
+    }
+
+@app.post("/api/osint/ingest-url")
+async def osint_ingest_url(
+    name: str = Form(...),
+    username: str = Form(...),
+    platform: str = Form("Web"),
+    profile_url: str = Form(""),
+    image_url: str = Form(...),
+    bio: str = Form(""),
+    location: str = Form("")
+):
+    """Ingest profile photo from public web image URL with custom social tags."""
+    success, meta, img_bytes = OSINTScraper.fetch_url_profile(name, username, platform, profile_url, image_url, bio, location)
+    if not success:
+        raise HTTPException(status_code=400, detail=meta)
+
+    img_bgr = OSINTScraper.decode_image_bytes(img_bytes)
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Failed to decode image from URL.")
+
+    faces = ai_app.get(img_bgr)
+    if not faces:
+        raise HTTPException(status_code=400, detail="No face detected in image at provided URL.")
+
+    faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
+    emb = faces[0].embedding
+
+    profile_rec = vector_db.add_profile(
+        name=meta["name"],
+        username=meta["username"],
+        platform=meta["platform"],
+        profile_url=meta["profile_url"],
+        bio=meta["bio"],
+        location=meta["location"],
+        embedding=emb,
+        avatar_url=meta["avatar_url"]
+    )
+
+    db.enroll_from_image_array(img_bgr, meta["name"], ai_app)
+    db_sql.upsert_person(meta["name"], vector_count=int(np.sum(db.names == meta["name"])))
+
+    return {
+        "success": True,
+        "message": f"Successfully indexed public profile for '{meta['name']}'",
+        "profile": profile_rec
+    }
 
 @app.delete("/api/person/{name}")
 def delete_person(name: str):

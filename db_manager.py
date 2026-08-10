@@ -19,7 +19,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # 1. Enrolled Persons Table
+            # 1. Registered Persons Table (with OSINT Social Media fields)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS persons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,6 +27,11 @@ class DatabaseManager:
                     department TEXT DEFAULT 'General',
                     role TEXT DEFAULT 'Member',
                     vector_count INTEGER DEFAULT 1,
+                    platform TEXT DEFAULT 'Internal',
+                    profile_url TEXT,
+                    bio TEXT,
+                    location TEXT,
+                    avatar_url TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)

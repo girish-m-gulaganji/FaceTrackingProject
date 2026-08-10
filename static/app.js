@@ -723,3 +723,199 @@ if (formRtsp) {
         }
     });
 }
+
+// ---------------------------------------------------------
+// OSINT REVERSE SEARCH & SOCIAL MEDIA INGESTION HANDLERS
+// ---------------------------------------------------------
+
+// 1. Reverse Image Search Form Submit
+const formReverseSearch = document.getElementById('form-reverse-search');
+if (formReverseSearch) {
+    formReverseSearch.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('search-photo-input');
+        const urlInput = document.getElementById('search-url-input').value.trim();
+        const alertBox = document.getElementById('search-alert');
+        const resultsContainer = document.getElementById('search-results-container');
+        const resultsList = document.getElementById('search-results-list');
+
+        if (!fileInput.files[0] && !urlInput) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = '⚠️ Please upload a target photo or enter an image URL.';
+            return;
+        }
+
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-info';
+        alertBox.innerText = '🔎 Extracting 512-D vector embedding & executing reverse facial match...';
+
+        const formData = new FormData();
+        if (fileInput.files[0]) {
+            formData.append('file', fileInput.files[0]);
+        } else if (urlInput) {
+            formData.append('image_url', urlInput);
+        }
+
+        try {
+            const res = await fetch('/api/reverse-search', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (res.ok && data.face_detected) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = `✅ Reverse Facial Search Complete! Found ${data.osint_matches.length} matching profiles out of ${data.total_osint_indexed} indexed profiles.`;
+
+                resultsContainer.style.display = 'block';
+
+                if (data.osint_matches.length === 0 && data.internal_match.name === 'Unknown') {
+                    resultsList.innerHTML = `
+                        <div class="card-panel" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">
+                            <h4 class="text-danger">❌ No Profile Match Found</h4>
+                            <p style="color:var(--text-muted); font-size:0.9rem;">This candidate face does not match any indexed social media profiles or internal database records.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                if (data.internal_match && data.internal_match.name !== 'Unknown') {
+                    html += `
+                        <div class="card-panel" style="background: rgba(251, 191, 36, 0.1); border-color: #fbbf24; margin-bottom: 1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <span class="badge yellow">Internal Database Match</span>
+                                    <h3 style="margin-top:0.3rem;">${escapeHtml(data.internal_match.name)}</h3>
+                                </div>
+                                <div style="text-align:right;">
+                                    <span style="font-size:1.4rem; font-weight:700; color:#fbbf24;">${data.internal_match.similarity_score}%</span>
+                                    <div style="font-size:0.75rem; color:var(--text-muted);">Cosine Similarity</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                data.osint_matches.forEach(m => {
+                    html += `
+                        <div class="card-panel" style="margin-bottom: 1rem; border-color: rgba(245, 158, 11, 0.3);">
+                            <div style="display:flex; gap:1rem; align-items:center;">
+                                ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" style="width:64px; height:64px; border-radius:50%; object-fit:cover; border:2px solid #fbbf24;" alt="Avatar">` : '<div style="width:64px; height:64px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-size:1.5rem;">👤</div>'}
+                                <div style="flex:1;">
+                                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                        <div>
+                                            <span class="badge yellow">${escapeHtml(m.platform || 'Social Web')}</span>
+                                            <h3 style="margin-top:0.2rem; font-size:1.2rem;">${escapeHtml(m.name)} <span style="font-size:0.9rem; color:var(--text-muted); font-weight:normal;">(@${escapeHtml(m.username)})</span></h3>
+                                        </div>
+                                        <div style="text-align:right;">
+                                            <span style="font-size:1.3rem; font-weight:700; color:#fbbf24;">${m.similarity_score}%</span>
+                                            <div style="font-size:0.75rem; color:var(--text-muted);">Vector Match</div>
+                                        </div>
+                                    </div>
+                                    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0.3rem;">${escapeHtml(m.bio)}</p>
+                                    <div style="margin-top:0.5rem; display:flex; gap:1rem; align-items:center;">
+                                        <span style="font-size:0.8rem; color:var(--text-muted);">📍 ${escapeHtml(m.location)}</span>
+                                        ${m.profile_url ? `<a href="${escapeHtml(m.profile_url)}" target="_blank" class="btn btn-secondary" style="font-size:0.8rem; padding:0.2rem 0.6rem;">🔗 View ${escapeHtml(m.platform)} Profile</a>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                resultsList.innerHTML = html;
+
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = `❌ ${data.detail || data.message || 'Reverse search failed.'}`;
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error executing reverse search: ${err.message}`;
+        }
+    });
+}
+
+// 2. GitHub Profile Ingest Form Submit
+const formIngestGithub = document.getElementById('form-ingest-github');
+if (formIngestGithub) {
+    formIngestGithub.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('github-username-input').value.trim();
+        const alertBox = document.getElementById('ingest-alert');
+
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-info';
+        alertBox.innerText = `🐙 Querying GitHub API for '@${username}'... Downloading avatar & embedding...`;
+
+        const formData = new FormData();
+        formData.append('username', username);
+
+        try {
+            const res = await fetch('/api/osint/ingest-github', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = `✅ Indexed GitHub profile for '${data.profile.name}' (@${username}) into vector database!`;
+                loadStats();
+                loadPersons();
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = `❌ Ingest Error: ${data.detail || 'Failed to ingest profile'}`;
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error ingesting GitHub profile: ${err.message}`;
+        }
+    });
+}
+
+// 3. Web URL Profile Ingest Form Submit
+const formIngestUrl = document.getElementById('form-ingest-url');
+if (formIngestUrl) {
+    formIngestUrl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('ingest-name').value.trim();
+        const username = document.getElementById('ingest-handle').value.trim();
+        const platform = document.getElementById('ingest-platform').value;
+        const profileUrl = document.getElementById('ingest-profile-url').value.trim();
+        const imageUrl = document.getElementById('ingest-image-url').value.trim();
+        const alertBox = document.getElementById('ingest-alert');
+
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-info';
+        alertBox.innerText = `🌐 Downloading profile image from URL... Computing 512-D vector...`;
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('username', username);
+        formData.append('platform', platform);
+        formData.append('profile_url', profileUrl);
+        formData.append('image_url', imageUrl);
+
+        try {
+            const res = await fetch('/api/osint/ingest-url', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = `✅ Successfully indexed ${platform} profile for '${name}' into vector database!`;
+                loadStats();
+                loadPersons();
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = `❌ Ingest Error: ${data.detail || 'Failed to ingest URL profile'}`;
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error ingesting URL profile: ${err.message}`;
+        }
+    });
+}
