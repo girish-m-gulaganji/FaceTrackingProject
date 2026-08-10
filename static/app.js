@@ -471,6 +471,21 @@ function pollJobStatus(jobId) {
 let liveActive = false;
 let liveStream = null;
 let liveInterval = null;
+let spokenSet = new Set();
+
+function speakGreeting(text) {
+    const voiceCheck = document.getElementById('live-voice-enable');
+    if (!voiceCheck || !voiceCheck.checked || !('speechSynthesis' in window)) return;
+
+    if (spokenSet.has(text)) return;
+    spokenSet.add(text);
+    setTimeout(() => spokenSet.delete(text), 15000);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+}
 
 async function toggleLiveSurveillance() {
     const btn = document.getElementById('btn-toggle-live');
@@ -505,6 +520,19 @@ async function toggleLiveSurveillance() {
                     const data = await res.json();
                     if (data.annotated_image) {
                         imgOutput.src = data.annotated_image;
+                    }
+
+                    if (data.detections && data.detections.length > 0) {
+                        data.detections.forEach(det => {
+                            if (det.name.includes("SPOOF")) {
+                                speakGreeting("Warning! Anti-spoofing attack detected!");
+                            } else if (det.name !== "Unknown") {
+                                const cleanName = det.name.split(' ')[0].replace(/[^a-zA-Z]/g, '');
+                                speakGreeting(`Welcome back, ${cleanName}! Attendance logged.`);
+                            } else {
+                                speakGreeting("Security Alert: Unrecognized person detected.");
+                            }
+                        });
                     }
                 } catch (err) {
                     console.error('Live frame recognition error:', err);
