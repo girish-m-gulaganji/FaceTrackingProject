@@ -233,6 +233,9 @@
                                 <label for="enroll-file">Select Image (JPG, PNG)</label>
                                 <input type="file" id="enroll-file" accept="image/*" required>
                             </div>
+                            <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer; font-size:0.85rem; color:var(--text-muted); margin-bottom:0.8rem;">
+                                <input type="checkbox" checked id="enroll-augment-check" style="width:auto;"> Enable Synthetic Multi-Vector Augmentation (3-5 Vectors)
+                            </label>
                             <button type="submit" class="btn btn-primary">✨ Register & Extract Embedding</button>
                         </form>
                         <div id="file-enroll-alert" class="alert-box"></div>

@@ -111,8 +111,8 @@ class FaceDatabase:
             metadata=self.metadata,
         )
 
-    def enroll_from_image_array(self, img_bgr, person_name, app):
-        """Enroll face from BGR image array."""
+    def enroll_from_image_array(self, img_bgr, person_name, app, augment: bool = True):
+        """Enroll face from BGR image array with optional synthetic multi-vector data augmentation."""
         if img_bgr is None:
             return False, "Invalid image data."
 
@@ -126,14 +126,25 @@ class FaceDatabase:
             reverse=True,
         )
 
-        embedding = faces[0].embedding.reshape(1, -1)
+        main_face = faces[0]
+        embeddings_to_add = [main_face.embedding.reshape(1, -1)]
 
-        if len(self.embeddings) > 0:
-            self.embeddings = np.vstack([self.embeddings, embedding])
-            self.names = np.append(self.names, person_name)
-        else:
-            self.embeddings = embedding
-            self.names = np.array([person_name])
+        if augment:
+            from face_augmentor import FaceAugmenter
+            aug_images = FaceAugmenter.generate_augmentations(img_bgr, main_face.bbox)
+            for aug_img in aug_images[1:]:  # Skip original
+                aug_faces = app.get(aug_img)
+                if aug_faces:
+                    aug_faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
+                    embeddings_to_add.append(aug_faces[0].embedding.reshape(1, -1))
+
+        for emb in embeddings_to_add:
+            if len(self.embeddings) > 0:
+                self.embeddings = np.vstack([self.embeddings, emb])
+                self.names = np.append(self.names, person_name)
+            else:
+                self.embeddings = emb
+                self.names = np.array([person_name])
 
         self.metadata[person_name] = {
             "enrolled_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -141,7 +152,7 @@ class FaceDatabase:
         }
 
         self.save()
-        return True, f"Successfully enrolled '{person_name}'."
+        return True, f"Successfully enrolled '{person_name}' with {len(embeddings_to_add)} vector embeddings."
 
     def remove_person(self, person_name):
         """Remove all embeddings for a person."""
