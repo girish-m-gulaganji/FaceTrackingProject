@@ -109,14 +109,23 @@ def get_stats():
         "db_stats": sql_stats,
     }
 
+from analytics_engine import AnalyticsEngine
+analytics_engine = AnalyticsEngine()
+
 @app.get("/api/analytics")
 def get_analytics():
     trends = db_sql.get_daily_attendance_trend(days=7)
     depts = db_sql.get_department_breakdown()
+    peak = analytics_engine.get_peak_hours_and_punctuality()
     return {
         "daily_trends": trends,
         "department_breakdown": depts,
+        "peak_metrics": peak
     }
+
+@app.get("/api/analytics/peak-hours")
+def get_peak_hours():
+    return analytics_engine.get_peak_hours_and_punctuality()
 
 @app.get("/api/notifications")
 def get_notification_settings():

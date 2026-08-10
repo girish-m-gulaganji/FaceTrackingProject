@@ -684,6 +684,13 @@ async function loadAnalyticsCharts() {
             }
         });
 
+        if (data.peak_metrics) {
+            const peakEl = document.getElementById('stat-peak-hour');
+            const punctEl = document.getElementById('stat-punctuality');
+            if (peakEl) peakEl.innerText = data.peak_metrics.peak_hour || 'N/A';
+            if (punctEl) punctEl.innerText = (data.peak_metrics.punctuality_pct || 100) + '%';
+        }
+
     } catch (err) {
         console.error('Failed to load analytics charts:', err);
     }
