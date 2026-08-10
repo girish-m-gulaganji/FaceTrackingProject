@@ -655,10 +655,19 @@ def download_pdf_attendance(filename: str):
     pdf_filename = os.path.basename(pdf_path)
     return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_filename)
 
-@app.get("/api/audit-logs")
-def get_system_audit_logs(limit: int = 50):
-    logs = db_sql.get_audit_logs(limit=limit)
-    return {"logs": logs}
+from id_card_generator import generate_id_card
+
+@app.get("/api/generate-id-card/{person_name}")
+def download_person_id_card(person_name: str):
+    db_persons = {p["name"]: p for p in db_sql.get_all_persons()}
+    p_info = db_persons.get(person_name, {})
+    dept = p_info.get("department", "AI Engineering")
+    role = p_info.get("role", "Member")
+    created = str(p_info.get("created_at", "2026-08-10"))[:10]
+
+    pdf_path = generate_id_card(person_name, department=dept, role=role, enrolled_date=created)
+    pdf_filename = os.path.basename(pdf_path)
+    return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_filename)
 
 if __name__ == "__main__":
     import uvicorn

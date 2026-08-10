@@ -150,6 +150,7 @@ async function loadPersons() {
                 <td>${p.count} vector(s)</td>
                 <td>${p.enrolled_at}</td>
                 <td>
+                    <a href="/api/generate-id-card/${encodeURIComponent(p.name)}" target="_blank" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.8rem; margin-right:0.3rem;">🆔 Smart ID Badge</a>
                     <button class="btn btn-danger" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="deletePerson('${escapeHtml(p.name)}')">🗑️ Delete</button>
                 </td>
             </tr>
