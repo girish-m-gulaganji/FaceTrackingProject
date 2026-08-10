@@ -184,18 +184,18 @@
                         <div class="grid-2col">
                             <div class="form-group">
                                 <label for="telegram-bot-token">Telegram Bot Token</label>
-                                <input type="password" id="telegram-bot-token" placeholder="e.g. 123456789:ABCdefGHIjklMNOpqrsTUVwxyZ" required>
+                                <input type="password" id="telegram-bot-token" placeholder="e.g. 123456789:ABCdefGHIjklMNOpqrsTUVwxyZ">
                             </div>
                             <div class="form-group">
                                 <label for="telegram-chat-id">Target Telegram Chat ID</label>
-                                <input type="text" id="telegram-chat-id" placeholder="e.g. -100123456789 or 987654321" required>
+                                <input type="text" id="telegram-chat-id" placeholder="e.g. -100123456789 or 987654321">
                             </div>
                         </div>
                         <div class="grid-2col" style="align-items:center;">
                             <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer;">
                                 <input type="checkbox" id="telegram-enable" style="width:auto;"> Enable Real-Time Telegram Push Alerts
                             </label>
-                            <button type="submit" class="btn btn-primary">💾 Save Telegram Settings</button>
+                            <button type="button" onclick="saveTelegramSettings(event)" class="btn btn-primary">💾 Save Telegram Settings</button>
                         </div>
                     </form>
                     <div id="telegram-alert" class="alert-box"></div>

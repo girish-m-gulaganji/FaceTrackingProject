@@ -1003,36 +1003,35 @@ async function loadTelegramSettings() {
     }
 }
 
-const formTelegramConfig = document.getElementById('form-telegram-config');
-if (formTelegramConfig) {
-    formTelegramConfig.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const botToken = document.getElementById('telegram-bot-token').value.trim();
-        const chatId = document.getElementById('telegram-chat-id').value.trim();
-        const enabled = document.getElementById('telegram-enable').checked;
-        const alertBox = document.getElementById('telegram-alert');
+async function saveTelegramSettings(e) {
+    if (e) e.preventDefault();
+    const botToken = document.getElementById('telegram-bot-token').value.trim();
+    const chatId = document.getElementById('telegram-chat-id').value.trim();
+    const enabled = document.getElementById('telegram-enable').checked;
+    const alertBox = document.getElementById('telegram-alert');
 
-        try {
-            const res = await fetch('/api/telegram/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled, bot_token: botToken, chat_id: chatId })
-            });
-            const data = await res.json();
-            alertBox.style.display = 'block';
-            if (res.ok && data.success) {
-                alertBox.className = 'alert-box alert-success';
-                alertBox.innerText = '✅ Saved Telegram push alert settings successfully!';
-            } else {
-                alertBox.className = 'alert-box alert-danger';
-                alertBox.innerText = '❌ Failed to save Telegram settings.';
-            }
-        } catch (err) {
-            alertBox.style.display = 'block';
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = '💾 Saving Telegram settings...';
+
+    try {
+        const res = await fetch('/api/telegram/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled, bot_token: botToken, chat_id: chatId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = '✅ Saved Telegram push alert settings successfully!';
+        } else {
             alertBox.className = 'alert-box alert-danger';
-            alertBox.innerText = `❌ Error saving Telegram settings: ${err.message}`;
+            alertBox.innerText = '❌ Failed to save Telegram settings.';
         }
-    });
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error saving Telegram settings: ${err.message}`;
+    }
 }
 
 // Load & Save Automated Daily Report Dispatcher Settings
