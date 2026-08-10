@@ -142,6 +142,30 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- System Security & Audit Log Timeline -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>🛡️ System Security & Audit Trail</h3>
+                        <button class="btn btn-secondary" onclick="loadAuditLogs()">🔄 Refresh Audit Trail</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Security Action</th>
+                                    <th>Event Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body">
+                                <tr>
+                                    <td colspan="3" class="text-center">Loading security logs...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <!-- VIEW 2: FACE REGISTRATION -->

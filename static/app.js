@@ -96,6 +96,7 @@ function initNavigation() {
             if (targetView === 'view-dashboard') {
                 loadStats();
                 loadPersons();
+                loadAuditLogs();
                 loadAnalyticsCharts();
             } else if (targetView === 'view-video') {
                 loadVideosList();
@@ -918,4 +919,29 @@ if (formIngestUrl) {
             alertBox.innerText = `❌ Error ingesting URL profile: ${err.message}`;
         }
     });
+}
+
+// Load System Security Audit Logs
+async function loadAuditLogs() {
+    const tbody = document.getElementById('audit-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/audit-logs');
+        const data = await res.json();
+
+        if (data.logs && data.logs.length > 0) {
+            tbody.innerHTML = data.logs.map(log => `
+                <tr>
+                    <td><small style="color:var(--text-muted);">${escapeHtml(log.timestamp || '')}</small></td>
+                    <td><span class="badge yellow">${escapeHtml(log.action || 'SYSTEM')}</span></td>
+                    <td>${escapeHtml(log.details || '')}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center">No security audit logs recorded yet.</td></tr>';
+        }
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Failed to load audit logs.</td></tr>';
+    }
 }

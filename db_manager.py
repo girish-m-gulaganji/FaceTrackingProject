@@ -169,6 +169,13 @@ class DatabaseManager:
             cursor.execute("INSERT INTO audit_logs (action, details) VALUES (?, ?)", (action, details))
             conn.commit()
 
+    def get_audit_logs(self, limit: int = 50):
+        """Retrieve recent system audit logs."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+
 if __name__ == "__main__":
     db = DatabaseManager()
     db.upsert_person("Girish", "AI Engineering", "Lead Developer", 6)

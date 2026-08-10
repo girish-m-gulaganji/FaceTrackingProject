@@ -360,6 +360,15 @@ async def recognize_frame(data: dict):
     for face in faces:
         bbox = face.bbox.astype(int).tolist()
         name, score = db.recognize(face.embedding, threshold=threshold)
+
+        # OSINT Vector DB Auto-Match for Unknown Faces
+        if name == "Unknown":
+            osint_matches = vector_db.search_profile(face.embedding, top_k=1, threshold=0.45)
+            if osint_matches:
+                best = osint_matches[0]
+                name = f"{best['name']} (@{best['username']})"
+                score = best['raw_score']
+
         raw_dets.append({"bbox": bbox, "name": name, "score": score})
 
     tracked_dets = global_tracker.update(raw_dets)
@@ -370,7 +379,7 @@ async def recognize_frame(data: dict):
         score = det["score"]
         tid = det["track_id"]
 
-        color = (0, 200, 0) if name != "Unknown" else (0, 0, 220)
+        color = (0, 200, 0) if "@" not in name and name != "Unknown" else ((245, 158, 11) if "@" in name else (0, 0, 220))
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         draw_fancy_label(frame, f"#{tid} {name} {score:.0%}", x1, y1, color)
         global_logger.mark(name)
@@ -596,6 +605,11 @@ def download_pdf_attendance(filename: str):
     pdf_path = generate_pdf_report(csv_path)
     pdf_filename = os.path.basename(pdf_path)
     return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_filename)
+
+@app.get("/api/audit-logs")
+def get_system_audit_logs(limit: int = 50):
+    logs = db_sql.get_audit_logs(limit=limit)
+    return {"logs": logs}
 
 if __name__ == "__main__":
     import uvicorn
