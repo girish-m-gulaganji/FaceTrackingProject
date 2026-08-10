@@ -213,14 +213,11 @@ from occlusion_engine import OcclusionDetector
 
 from scheduler_service import AttendanceReportScheduler
 
-from webhook_manager import WebhookManager
-
 vector_db = VectorDBManager()
 liveness_engine = LivenessDetector()
 telegram_bot = TelegramNotifier()
 scheduler_service = AttendanceReportScheduler()
 scheduler_service.start()
-webhook_manager = WebhookManager()
 
 @app.get("/api/telegram/settings")
 def get_telegram_settings():
@@ -230,19 +227,6 @@ def get_telegram_settings():
 def update_telegram_settings(config: dict):
     updated = telegram_bot.save_config(config)
     return {"success": True, "config": updated}
-
-@app.get("/api/webhooks/settings")
-def get_webhook_settings():
-    return webhook_manager.config
-
-@app.post("/api/webhooks/settings")
-def update_webhook_settings(config: dict):
-    updated = webhook_manager.save_config(config)
-    return {"success": True, "config": updated}
-
-@app.post("/api/webhooks/test")
-def test_webhook_endpoint():
-    return webhook_manager.test_webhook()
 
 @app.get("/api/schedule/settings")
 def get_scheduler_settings():
@@ -439,12 +423,8 @@ async def recognize_frame(data: dict):
         # Telegram Security Alert Trigger
         if not liveness["is_real"]:
             telegram_bot.send_alert("Anti-Spoofing Security Alert", f"Spoof paper/screen attack detected (Liveness Score: {liveness['score']}%).", frame)
-            webhook_manager.dispatch_event("spoof_attack", {"name": name, "liveness_score": liveness["score"], "bbox": bbox})
         elif "Unknown" in name:
             telegram_bot.send_alert("Unknown Person Detected", "Unrecognized person detected in camera feed.", frame)
-            webhook_manager.dispatch_event("unknown_face", {"bbox": bbox})
-        else:
-            webhook_manager.dispatch_event("attendance_marked", {"name": name, "score": score, "bbox": bbox})
 
     tracked_dets = global_tracker.update(raw_dets)
 
