@@ -185,9 +185,31 @@
                                 <input type="checkbox" id="telegram-enable" style="width:auto;"> Enable Real-Time Telegram Push Alerts
                             </label>
                             <button type="submit" class="btn btn-primary">💾 Save Telegram Settings</button>
+                <!-- Automated Daily Attendance Report Scheduler Card -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>⏰ Automated Daily Attendance Email Dispatcher</h3>
+                        <button class="btn btn-secondary" onclick="triggerManualDispatch()">⚡ Send Instant Dispatch Now</button>
+                    </div>
+                    <form id="form-scheduler-config" class="form-layout">
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="schedule-dispatch-time">Daily Dispatch Time (24h Format)</label>
+                                <input type="time" id="schedule-dispatch-time" value="18:00" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="schedule-recipient-email">Recipient Manager Email</label>
+                                <input type="email" id="schedule-recipient-email" placeholder="manager@company.com">
+                            </div>
+                        </div>
+                        <div class="grid-2col" style="align-items:center;">
+                            <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer;">
+                                <input type="checkbox" id="schedule-enable" style="width:auto;"> Enable Daily Automated PDF & Excel Email Dispatch
+                            </label>
+                            <button type="submit" class="btn btn-primary">💾 Save Dispatch Scheduler</button>
                         </div>
                     </form>
-                    <div id="telegram-alert" class="alert-box"></div>
+                    <div id="schedule-alert" class="alert-box"></div>
                 </div>
             </section>
 

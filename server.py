@@ -201,9 +201,13 @@ from osint_scraper import OSINTScraper
 from liveness_detector import LivenessDetector
 from telegram_notifier import TelegramNotifier
 
+from scheduler_service import AttendanceReportScheduler
+
 vector_db = VectorDBManager()
 liveness_engine = LivenessDetector()
 telegram_bot = TelegramNotifier()
+scheduler_service = AttendanceReportScheduler()
+scheduler_service.start()
 
 @app.get("/api/telegram/settings")
 def get_telegram_settings():
@@ -213,6 +217,20 @@ def get_telegram_settings():
 def update_telegram_settings(config: dict):
     updated = telegram_bot.save_config(config)
     return {"success": True, "config": updated}
+
+@app.get("/api/schedule/settings")
+def get_scheduler_settings():
+    return scheduler_service.config
+
+@app.post("/api/schedule/settings")
+def update_scheduler_settings(config: dict):
+    updated = scheduler_service.save_config(config)
+    return {"success": True, "config": updated}
+
+@app.post("/api/schedule/trigger-now")
+def trigger_manual_report_dispatch():
+    res = scheduler_service.trigger_dispatch()
+    return res
 
 @app.post("/api/reverse-search")
 async def reverse_facial_search(

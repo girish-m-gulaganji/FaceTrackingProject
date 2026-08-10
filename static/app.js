@@ -98,6 +98,7 @@ function initNavigation() {
                 loadPersons();
                 loadAuditLogs();
                 loadTelegramSettings();
+                loadSchedulerSettings();
                 loadAnalyticsCharts();
             } else if (targetView === 'view-video') {
                 loadVideosList();
@@ -993,6 +994,78 @@ if (formTelegramConfig) {
             alertBox.style.display = 'block';
             alertBox.className = 'alert-box alert-danger';
             alertBox.innerText = `❌ Error saving Telegram settings: ${err.message}`;
+        }
+    });
+}
+
+// Load & Save Automated Daily Report Dispatcher Settings
+async function loadSchedulerSettings() {
+    try {
+        const res = await fetch('/api/schedule/settings');
+        const config = await res.json();
+
+        const timeInput = document.getElementById('schedule-dispatch-time');
+        const emailInput = document.getElementById('schedule-recipient-email');
+        const enableCheck = document.getElementById('schedule-enable');
+
+        if (timeInput) timeInput.value = config.dispatch_time || '18:00';
+        if (emailInput) emailInput.value = config.recipient_email || '';
+        if (enableCheck) enableCheck.checked = config.enabled || false;
+    } catch (err) {
+        console.error('Failed to load scheduler settings:', err);
+    }
+}
+
+async function triggerManualDispatch() {
+    const alertBox = document.getElementById('schedule-alert');
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = '⚡ Compiling PDF & Excel reports and sending instant email dispatch...';
+
+    try {
+        const res = await fetch('/api/schedule/trigger-now', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = `✅ Instant Dispatch Complete! Compiled ${data.pdf} & ${data.excel}.`;
+        } else {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = '❌ Failed to execute instant dispatch.';
+        }
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error executing dispatch: ${err.message}`;
+    }
+}
+
+const formSchedulerConfig = document.getElementById('form-scheduler-config');
+if (formSchedulerConfig) {
+    formSchedulerConfig.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dispatchTime = document.getElementById('schedule-dispatch-time').value;
+        const recipientEmail = document.getElementById('schedule-recipient-email').value.trim();
+        const enabled = document.getElementById('schedule-enable').checked;
+        const alertBox = document.getElementById('schedule-alert');
+
+        try {
+            const res = await fetch('/api/schedule/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled, dispatch_time: dispatchTime, recipient_email: recipientEmail })
+            });
+            const data = await res.json();
+            alertBox.style.display = 'block';
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = '✅ Saved report scheduler settings successfully!';
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = '❌ Failed to save scheduler settings.';
+            }
+        } catch (err) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error saving scheduler settings: ${err.message}`;
         }
     });
 }
