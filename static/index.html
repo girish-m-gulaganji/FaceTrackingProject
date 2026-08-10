@@ -44,6 +44,7 @@
                 <button class="nav-btn" data-view="view-osint">
                     <span class="icon">🔍</span> OSINT Reverse Search
                 </button>
+
             </nav>
 
             <div class="sidebar-status">
@@ -460,93 +461,38 @@
                         </table>
                     </div>
                 </div>
-            </section>
 
-            <!-- VIEW 6: OSINT REVERSE SEARCH & SOCIAL MEDIA INGESTION -->
+            <!-- VIEW 6: OSINT REVERSE SEARCH -->
             <section id="view-osint" class="view-panel">
                 <div class="hero-card">
-                    <h1 class="hero-title">🔍 OSINT Reverse Facial Search & Social Media Ingestion</h1>
-                    <p class="hero-subtitle">Identify unknown faces against public social media profile index using 512-D ArcFace vectors</p>
+                    <h1 class="hero-title">🔍 OSINT Reverse Facial Search</h1>
+                    <p class="hero-subtitle">Identify unknown faces against vector database using 512-D ArcFace vectors</p>
                 </div>
 
-                <div class="grid-2col">
-                    <!-- Reverse Image Search Card -->
-                    <div class="card-panel">
-                        <h3>🔎 Reverse Image Target Search</h3>
-                        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Upload any candidate photo or enter an image URL to find matching social profiles.</p>
-                        <form id="form-reverse-search" class="form-layout" style="margin-top:1rem;">
-                            <div class="form-group">
-                                <label for="search-photo-input">Upload Target Photo (JPG/PNG)</label>
-                                <input type="file" id="search-photo-input" accept="image/*">
-                            </div>
-                            <div class="form-group">
-                                <label for="search-url-input">Or Target Image URL</label>
-                                <input type="text" id="search-url-input" placeholder="https://example.com/target_photo.jpg">
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-large">🔎 Execute Reverse Facial Search</button>
-                        </form>
-                        <div id="search-alert" class="alert-box"></div>
-
-                        <!-- Match Results Container -->
-                        <div id="search-results-container" style="margin-top:1.5rem; display:none;">
-                            <h4>🎯 Target Match Results</h4>
-                            <div id="search-results-list" style="margin-top:1rem;"></div>
+                <div class="card-panel">
+                    <h3>🔎 Reverse Image Target Search</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Upload any candidate photo or enter an image URL to find matching profiles.</p>
+                    <form id="form-reverse-search" class="form-layout" style="margin-top:1rem;">
+                        <div class="form-group">
+                            <label for="search-photo-input">Upload Target Photo (JPG/PNG)</label>
+                            <input type="file" id="search-photo-input" accept="image/*">
                         </div>
-                    </div>
+                        <div class="form-group">
+                            <label for="search-url-input">Or Target Image URL</label>
+                            <input type="text" id="search-url-input" placeholder="https://example.com/target_photo.jpg">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-large">🔎 Execute Reverse Facial Search</button>
+                    </form>
+                    <div id="search-alert" class="alert-box"></div>
 
-                    <!-- OSINT Profile Ingester Card -->
-                    <div class="card-panel">
-                        <h3>🌐 Ingest Social Media Profiles</h3>
-                        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">Fetch public avatars and metadata to train the facial vector database.</p>
-
-                        <!-- GitHub Quick Ingest -->
-                        <form id="form-ingest-github" class="form-layout" style="margin-top:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border-glow);">
-                            <div class="form-group">
-                                <label for="github-username-input">GitHub Public Profile Handle</label>
-                                <input type="text" id="github-username-input" placeholder="e.g. torvalds or girish-m-gulaganji" required>
-                            </div>
-                            <button type="submit" class="btn btn-secondary">🐙 Ingest GitHub Profile Avatar</button>
-                        </form>
-
-                        <!-- Web URL Image Ingest -->
-                        <form id="form-ingest-url" class="form-layout" style="margin-top:1rem;">
-                            <div class="grid-2col">
-                                <div class="form-group">
-                                    <label for="ingest-name">Person Display Name</label>
-                                    <input type="text" id="ingest-name" placeholder="John Doe" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="ingest-handle">Username / Handle</label>
-                                    <input type="text" id="ingest-handle" placeholder="@johndoe" required>
-                                </div>
-                            </div>
-                            <div class="grid-2col">
-                                <div class="form-group">
-                                    <label for="ingest-platform">Platform</label>
-                                    <select id="ingest-platform">
-                                        <option value="LinkedIn">LinkedIn</option>
-                                        <option value="Twitter/X">Twitter / X</option>
-                                        <option value="Instagram">Instagram</option>
-                                        <option value="YouTube">YouTube</option>
-                                        <option value="Personal Web">Personal Web</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="ingest-profile-url">Profile Page URL</label>
-                                    <input type="text" id="ingest-profile-url" placeholder="https://linkedin.com/in/johndoe">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="ingest-image-url">Direct Profile Photo URL</label>
-                                <input type="text" id="ingest-image-url" placeholder="https://example.com/avatar.jpg" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">🌐 Ingest Custom Web Profile</button>
-                        </form>
-                        <div id="ingest-alert" class="alert-box"></div>
+                    <!-- Match Results Container -->
+                    <div id="search-results-container" style="margin-top:1.5rem; display:none;">
+                        <h4>🎯 Target Match Results</h4>
+                        <div id="search-results-list" style="margin-top:1rem;"></div>
                     </div>
                 </div>
             </section>
-        </main>
+
     </div>
 
     <!-- Admin Login Screen Overlay Modal -->

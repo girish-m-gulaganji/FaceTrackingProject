@@ -205,15 +205,8 @@ async def enroll_batch(files: list[UploadFile] = File(...)):
         success, msg = db.enroll_from_image_array(img_bgr, person_name, ai_app)
         if success:
             db_sql.upsert_person(person_name, vector_count=int(np.sum(db.names == person_name)))
+from vector_db import VectorDBManager
 from ocr_enrollment import PaperOCREnroller
-
-@app.post("/api/enroll-ocr-document")
-async def enroll_ocr_document(file: UploadFile = File(...), name: str = Form(None)):
-    contents = await file.read()
-    res = PaperOCREnroller.process_paper_document(contents, file.filename, db, ai_app, db_sql, fallback_name=name)
-    if not res.get("success"):
-        raise HTTPException(status_code=400, detail=res.get("message"))
-    return res
 from osint_scraper import OSINTScraper
 from liveness_detector import LivenessDetector
 from telegram_notifier import TelegramNotifier
@@ -236,6 +229,14 @@ def update_telegram_settings(config: dict):
     updated = telegram_bot.save_config(config)
     return {"success": True, "config": updated}
 
+@app.post("/api/enroll-ocr-document")
+async def enroll_ocr_document(file: UploadFile = File(...), name: str = Form(None)):
+    contents = await file.read()
+    res = PaperOCREnroller.process_paper_document(contents, file.filename, db, ai_app, db_sql, fallback_name=name)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
 @app.get("/api/schedule/settings")
 def get_scheduler_settings():
     return scheduler_service.config
@@ -252,28 +253,38 @@ def trigger_manual_report_dispatch():
 
 @app.post("/api/reverse-search")
 async def reverse_facial_search(
-    file: UploadFile = File(None),
-    image_url: str = Form(None),
+    file: Optional[UploadFile] = File(None),
+    image_url: Optional[str] = Form(None),
     threshold: float = Form(0.45)
 ):
-    """Reverse facial search against indexed social media profiles & database."""
+    """Reverse facial search against indexed vector database & internal database."""
     img_bgr = None
 
-    if file:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    elif image_url:
-        success, _, img_bytes = OSINTScraper.fetch_url_profile("temp", "temp", "temp", image_url, image_url)
-        if success:
-            img_bgr = OSINTScraper.decode_image_bytes(img_bytes)
+    try:
+        if file and file.filename:
+            contents = await file.read()
+            if len(contents) > 0:
+                nparr = np.frombuffer(contents, np.uint8)
+                img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        elif image_url and image_url.strip():
+            success, _, img_bytes = OSINTScraper.fetch_url_profile("temp", "temp", "temp", image_url.strip(), image_url.strip())
+            if success and img_bytes:
+                img_bgr = OSINTScraper.decode_image_bytes(img_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {str(e)}")
 
     if img_bgr is None:
-        raise HTTPException(status_code=400, detail="Invalid image input. Provide a file or image URL.")
+        raise HTTPException(status_code=400, detail="Invalid image file or inaccessible image URL.")
 
     faces = ai_app.get(img_bgr)
     if not faces:
-        return {"matches": [], "message": "No face detected in target image."}
+        return {
+            "face_detected": False,
+            "internal_match": {"name": "Unknown", "similarity_score": 0},
+            "osint_matches": [],
+            "total_osint_indexed": len(vector_db.embeddings),
+            "message": "No face detected in target image."
+        }
 
     faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
     target_face = faces[0]

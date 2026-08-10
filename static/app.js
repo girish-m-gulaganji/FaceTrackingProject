@@ -766,11 +766,13 @@ if (formRtsp) {
     });
 }
 
+
+
 // ---------------------------------------------------------
-// OSINT REVERSE SEARCH & SOCIAL MEDIA INGESTION HANDLERS
+// OSINT REVERSE SEARCH HANDLER
 // ---------------------------------------------------------
 
-// 1. Reverse Image Search Form Submit
+// Reverse Image Search Form Submit
 const formReverseSearch = document.getElementById('form-reverse-search');
 if (formReverseSearch) {
     formReverseSearch.addEventListener('submit', async (e) => {
@@ -812,11 +814,11 @@ if (formReverseSearch) {
 
                 resultsContainer.style.display = 'block';
 
-                if (data.osint_matches.length === 0 && data.internal_match.name === 'Unknown') {
+                if (data.osint_matches.length === 0 && (!data.internal_match || data.internal_match.name === 'Unknown')) {
                     resultsList.innerHTML = `
                         <div class="card-panel" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">
                             <h4 class="text-danger">❌ No Profile Match Found</h4>
-                            <p style="color:var(--text-muted); font-size:0.9rem;">This candidate face does not match any indexed social media profiles or internal database records.</p>
+                            <p style="color:var(--text-muted); font-size:0.9rem;">This candidate face does not match any indexed profiles or internal database records.</p>
                         </div>
                     `;
                     return;
@@ -880,89 +882,8 @@ if (formReverseSearch) {
     });
 }
 
-// 2. GitHub Profile Ingest Form Submit
-const formIngestGithub = document.getElementById('form-ingest-github');
-if (formIngestGithub) {
-    formIngestGithub.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('github-username-input').value.trim();
-        const alertBox = document.getElementById('ingest-alert');
-
-        alertBox.style.display = 'block';
-        alertBox.className = 'alert-box alert-info';
-        alertBox.innerText = `🐙 Querying GitHub API for '@${username}'... Downloading avatar & embedding...`;
-
-        const formData = new FormData();
-        formData.append('username', username);
-
-        try {
-            const res = await fetch('/api/osint/ingest-github', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                alertBox.className = 'alert-box alert-success';
-                alertBox.innerText = `✅ Indexed GitHub profile for '${data.profile.name}' (@${username}) into vector database!`;
-                loadStats();
-                loadPersons();
-            } else {
-                alertBox.className = 'alert-box alert-danger';
-                alertBox.innerText = `❌ Ingest Error: ${data.detail || 'Failed to ingest profile'}`;
-            }
-        } catch (err) {
-            alertBox.className = 'alert-box alert-danger';
-            alertBox.innerText = `❌ Error ingesting GitHub profile: ${err.message}`;
-        }
-    });
-}
-
-// 3. Web URL Profile Ingest Form Submit
-const formIngestUrl = document.getElementById('form-ingest-url');
-if (formIngestUrl) {
-    formIngestUrl.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('ingest-name').value.trim();
-        const username = document.getElementById('ingest-handle').value.trim();
-        const platform = document.getElementById('ingest-platform').value;
-        const profileUrl = document.getElementById('ingest-profile-url').value.trim();
-        const imageUrl = document.getElementById('ingest-image-url').value.trim();
-        const alertBox = document.getElementById('ingest-alert');
-
-        alertBox.style.display = 'block';
-        alertBox.className = 'alert-box alert-info';
-        alertBox.innerText = `🌐 Downloading profile image from URL... Computing 512-D vector...`;
-
-        const formData = new FormData();
-        formData.append('name', name);
-        formData.append('username', username);
-        formData.append('platform', platform);
-        formData.append('profile_url', profileUrl);
-        formData.append('image_url', imageUrl);
-
-        try {
-            const res = await fetch('/api/osint/ingest-url', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                alertBox.className = 'alert-box alert-success';
-                alertBox.innerText = `✅ Successfully indexed ${platform} profile for '${name}' into vector database!`;
-                loadStats();
-                loadPersons();
-            } else {
-                alertBox.className = 'alert-box alert-danger';
-                alertBox.innerText = `❌ Ingest Error: ${data.detail || 'Failed to ingest URL profile'}`;
-            }
-        } catch (err) {
-            alertBox.className = 'alert-box alert-danger';
-            alertBox.innerText = `❌ Error ingesting URL profile: ${err.message}`;
-        }
-    });
-}
-
 // Load System Security Audit Logs
+
 async function loadAuditLogs() {
     const tbody = document.getElementById('audit-table-body');
     if (!tbody) return;
