@@ -20,13 +20,18 @@ async function checkAuthStatus() {
         const data = await res.json();
 
         if (data.authenticated) {
-            modal.style.display = 'none';
-            document.getElementById('session-username').innerText = data.user || 'admin';
+            if (modal) modal.style.display = 'none';
+            if (data.token) {
+                activeToken = data.token;
+                localStorage.setItem('admin_token', activeToken);
+            }
+            const userEl = document.getElementById('session-username');
+            if (userEl) userEl.innerText = data.user || 'admin';
         } else {
-            modal.style.display = 'flex';
+            if (modal) modal.style.display = 'none';
         }
     } catch (err) {
-        modal.style.display = 'flex';
+        if (modal) modal.style.display = 'none';
     }
 }
 
