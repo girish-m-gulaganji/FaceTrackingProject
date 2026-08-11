@@ -822,9 +822,16 @@ async def process_rtsp_stream(
 
 @app.get("/api/generate-pdf/{filename}")
 def download_pdf_attendance(filename: str):
-    csv_path = os.path.join("attendance_logs", filename)
+    if filename.lower() in ["today", "latest"]:
+        filename = f"attendance_{datetime.now().strftime('%Y-%m-%d')}.csv"
+        csv_path = os.path.join("attendance_logs", filename)
+        if not os.path.exists(csv_path):
+            global_logger.save_csv()
+    else:
+        csv_path = os.path.join("attendance_logs", filename)
+
     if not os.path.exists(csv_path):
-        raise HTTPException(status_code=404, detail="CSV file not found.")
+        raise HTTPException(status_code=404, detail="CSV report file not found.")
 
     pdf_path = generate_pdf_report(csv_path)
     pdf_filename = os.path.basename(pdf_path)

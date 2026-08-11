@@ -106,6 +106,8 @@ function initNavigation() {
                 loadVideosList();
             } else if (targetView === 'view-attendance') {
                 loadAttendanceList();
+            } else if (targetView === 'view-webcam') {
+                loadLiveAttendanceLogs();
             }
         });
     });
@@ -489,6 +491,37 @@ function speakGreeting(text) {
     window.speechSynthesis.speak(utterance);
 }
 
+// Load Real-Time Camera Attendance Logs
+async function loadLiveAttendanceLogs() {
+    const tbody = document.getElementById('live-attendance-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/attendance');
+        const data = await res.json();
+        const logs = data.logs || data.latest_logs || [];
+
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No attendance records logged today yet.</td></tr>';
+            return;
+        }
+
+        const recentLogs = logs.slice(-15).reverse();
+
+        tbody.innerHTML = recentLogs.map(log => `
+            <tr>
+                <td><strong>${escapeHtml(log.person_name || log.Name || log.name || 'Unknown')}</strong></td>
+                <td><span style="background:rgba(34,197,94,0.15); padding:0.2rem 0.6rem; border-radius:12px; font-size:0.85rem; border:1px solid rgba(34,197,94,0.3); color:#4ade80;">${escapeHtml(log.Status || 'Present')}</span></td>
+                <td>${escapeHtml(log.timestamp || log.Timestamp || log.time || 'N/A')}</td>
+                <td><span style="background:rgba(37,99,235,0.15); padding:0.2rem 0.6rem; border-radius:12px; font-size:0.85rem; color:#60a5fa;">${escapeHtml(log.source_file || 'Live Camera Feed')}</span></td>
+                <td><strong>${log.confidence ? (log.confidence * 100).toFixed(0) + '%' : '100%'}</strong></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load real-time camera logs.</td></tr>';
+    }
+}
+
 async function toggleLiveSurveillance() {
     const btn = document.getElementById('btn-toggle-live');
     const video = document.getElementById('live-webcam-element');
@@ -496,12 +529,6 @@ async function toggleLiveSurveillance() {
     const canvas = document.getElementById('live-canvas');
     const alertBox = document.getElementById('live-surveillance-alert');
 
-    if (!liveActive) {
-        try {
-            if (alertBox) {
-                alertBox.style.display = 'block';
-                alertBox.className = 'alert-box alert-info';
-                alertBox.innerText = '📷 Connecting to webcam and initializing AI face recognition engine...';
             }
 
             // Ideal resolution constraints for maximum camera hardware compatibility

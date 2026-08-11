@@ -598,6 +598,36 @@
                     </div>
                     <div id="live-surveillance-alert" class="alert-box"></div>
                 </div>
+
+                <!-- Live Attendance Log & Quick Report Export Panel -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>📋 Real-Time Camera Attendance Logs</h3>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-secondary" onclick="loadLiveAttendanceLogs()">🔄 Refresh Stream</button>
+                            <a id="live-btn-download-csv" href="/api/attendance" target="_blank" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border:none;">📥 Download Today's CSV</a>
+                            <a id="live-btn-download-pdf" href="/api/generate-pdf/today" target="_blank" class="btn btn-primary">📄 Export Today's PDF Report</a>
+                        </div>
+                    </div>
+                    <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Person Name</th>
+                                    <th>Status</th>
+                                    <th>Check-in Time</th>
+                                    <th>Source Camera</th>
+                                    <th>Confidence Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="live-attendance-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center">Turn on live camera feed to capture attendance in real time.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <!-- VIEW 5: ATTENDANCE REPORTS -->
