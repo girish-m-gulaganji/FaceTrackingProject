@@ -741,17 +741,18 @@ def get_job_status(job_id: str):
 @app.get("/api/attendance")
 def get_attendance():
     log_dir = "attendance_logs"
-    if not os.path.exists(log_dir):
-        return {"files": [], "logs": []}
+    os.makedirs(log_dir, exist_ok=True)
 
-    csv_files = sorted([f for f in os.listdir(log_dir) if f.endswith(".csv")], reverse=True)
-    logs = []
-    if csv_files:
-        latest_file = os.path.join(log_dir, csv_files[0])
-        df = pd.read_csv(latest_file)
-        logs = df.to_dict(orient="records")
+    today_csv = f"attendance_{datetime.now().strftime('%Y-%m-%d')}.csv"
+    today_path = os.path.join(log_dir, today_csv)
+    if not os.path.exists(today_path):
+        global_logger.save_csv(today_csv)
 
-    return {"files": csv_files, "latest_logs": logs}
+    csv_files = [f for f in os.listdir(log_dir) if f.endswith(".csv")]
+    csv_files.sort(key=lambda x: (0 if x == today_csv else 1, x))
+
+    logs = db_sql.get_attendance_logs(limit=100)
+    return {"files": csv_files, "latest_logs": logs, "logs": logs}
 
 from pdf_generator import generate_pdf_report
 

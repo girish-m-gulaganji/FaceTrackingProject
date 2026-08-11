@@ -627,20 +627,20 @@ async function toggleLiveSurveillance() {
 // Load Attendance Reports List
 async function loadAttendanceList() {
     const select = document.getElementById('select-csv-log');
+    if (!select) return;
+
     try {
         const res = await fetch('/api/attendance');
         const data = await res.json();
 
-        select.innerHTML = '<option value="">-- Select Report --</option>';
         if (data.files && data.files.length > 0) {
-            data.files.forEach(f => {
-                select.innerHTML += `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`;
-            });
+            select.innerHTML = data.files.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
             select.value = data.files[0];
-            loadAttendanceDetails(data.files[0]);
+            setTimeout(() => loadAttendanceDetails(data.files[0]), 50);
         } else {
             select.innerHTML = '<option value="">No attendance reports found</option>';
-            document.getElementById('attendance-table-body').innerHTML = '<tr><td colspan="5" class="text-center">No attendance reports available.</td></tr>';
+            const tbody = document.getElementById('attendance-table-body');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center">No attendance reports available.</td></tr>';
         }
     } catch (err) {
         console.error('Failed to load attendance list:', err);
@@ -649,6 +649,10 @@ async function loadAttendanceList() {
 
 // Load Attendance Log File Details
 async function loadAttendanceDetails(filename) {
+    if (!filename) {
+        const sel = document.getElementById('select-csv-log');
+        filename = sel ? sel.value : '';
+    }
     if (!filename) return;
 
     const tbody = document.getElementById('attendance-table-body');
@@ -656,46 +660,52 @@ async function loadAttendanceDetails(filename) {
     const downloadPdfBtn = document.getElementById('btn-download-pdf');
     const downloadExcelBtn = document.getElementById('btn-download-excel');
 
-    downloadBtn.href = `/api/download-attendance/${encodeURIComponent(filename)}`;
-    downloadBtn.style.display = 'inline-flex';
-
+    if (downloadBtn) {
+        downloadBtn.href = `/api/download-attendance/${encodeURIComponent(filename)}`;
+        downloadBtn.style.display = 'inline-flex';
+    }
     if (downloadPdfBtn) {
         downloadPdfBtn.href = `/api/generate-pdf/${encodeURIComponent(filename)}`;
         downloadPdfBtn.style.display = 'inline-flex';
     }
-
     if (downloadExcelBtn) {
         downloadExcelBtn.href = `/api/generate-excel/${encodeURIComponent(filename)}`;
         downloadExcelBtn.style.display = 'inline-flex';
+    }
+
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading attendance records...</td></tr>';
     }
 
     try {
         const res = await fetch(`/api/download-attendance/${encodeURIComponent(filename)}`);
         const text = await res.text();
 
-        const lines = text.trim().split('\n');
+        const lines = text.trim().split(/\r?\n/);
         if (lines.length <= 1) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center">CSV file is empty.</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center">CSV file is empty.</td></tr>';
             return;
         }
 
         const rows = lines.slice(1).map(line => {
-            const cols = line.split(',').map(c => c.replace(/"/g, ''));
+            const cols = line.split(',').map(c => c.replace(/"/g, '').trim());
+            if (!cols[0]) return '';
             return `
                 <tr>
                     <td><strong>${escapeHtml(cols[0] || '')}</strong></td>
-                    <td><span class="status-dot yellow" style="display:inline-block; margin-right:4px;"></span>${escapeHtml(cols[1] || 'Present')}</td>
+                    <td><span class="status-dot green" style="display:inline-block; margin-right:4px;"></span>${escapeHtml(cols[1] || 'Present')}</td>
                     <td>${escapeHtml(cols[2] || '')}</td>
-                    <td>${escapeHtml(cols[3] || '')}</td>
-                    <td>${escapeHtml(cols[4] || '')}</td>
+                    <td>${escapeHtml(cols[3] || 'N/A')}</td>
+                    <td>${escapeHtml(cols[4] || '0')}</td>
                 </tr>
             `;
-        }).join('');
+        }).filter(r => r !== '').join('');
 
-        tbody.innerHTML = rows;
+        if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" class="text-center">No records found in report.</td></tr>';
 
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error reading CSV file.</td></tr>';
+        console.error('Error reading CSV:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error reading CSV file.</td></tr>';
     }
 }
 
