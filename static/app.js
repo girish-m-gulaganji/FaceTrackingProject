@@ -85,35 +85,57 @@ async function logoutAdmin() {
 }
 
 // View Navigation Logic
-function initNavigation() {
+function switchView(targetView) {
+    if (!targetView) return;
     const navButtons = document.querySelectorAll('.nav-btn');
     const viewPanels = document.querySelectorAll('.view-panel');
 
+    navButtons.forEach(b => {
+        if (b.getAttribute('data-view') === targetView) {
+            b.classList.add('active');
+        } else {
+            b.classList.remove('active');
+        }
+    });
+
+    viewPanels.forEach(p => {
+        if (p.id === targetView) {
+            p.classList.add('active');
+            p.style.display = 'block';
+        } else {
+            p.classList.remove('active');
+            p.style.display = 'none';
+        }
+    });
+
+    try {
+        if (targetView === 'view-dashboard') {
+            loadStats();
+            loadPersons();
+            if (typeof loadAuditLogs === 'function') loadAuditLogs();
+            if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+            if (typeof loadSchedulerSettings === 'function') loadSchedulerSettings();
+            if (typeof loadWebhookSettings === 'function') loadWebhookSettings();
+            if (typeof loadAnalyticsCharts === 'function') loadAnalyticsCharts();
+        } else if (targetView === 'view-video') {
+            loadVideosList();
+        } else if (targetView === 'view-attendance') {
+            loadAttendanceList();
+        } else if (targetView === 'view-webcam') {
+            loadLiveAttendanceLogs();
+        }
+    } catch (err) {
+        console.warn('Sub-task load notice:', err);
+    }
+}
+window.switchView = switchView;
+
+function initNavigation() {
+    const navButtons = document.querySelectorAll('.nav-btn');
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetView = btn.getAttribute('data-view');
-
-            navButtons.forEach(b => b.classList.remove('active'));
-            viewPanels.forEach(p => p.classList.remove('active'));
-
-            btn.classList.add('active');
-            document.getElementById(targetView).classList.add('active');
-
-            if (targetView === 'view-dashboard') {
-                loadStats();
-                loadPersons();
-                loadAuditLogs();
-                loadTelegramSettings();
-                loadSchedulerSettings();
-                loadWebhookSettings();
-                loadAnalyticsCharts();
-            } else if (targetView === 'view-video') {
-                loadVideosList();
-            } else if (targetView === 'view-attendance') {
-                loadAttendanceList();
-            } else if (targetView === 'view-webcam') {
-                loadLiveAttendanceLogs();
-            }
+            switchView(targetView);
         });
     });
 }

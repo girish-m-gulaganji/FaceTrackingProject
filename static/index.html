@@ -26,22 +26,22 @@
             </div>
 
             <nav class="nav-menu">
-                <button class="nav-btn active" data-view="view-dashboard">
+                <button class="nav-btn active" data-view="view-dashboard" onclick="switchView('view-dashboard')">
                     <span class="icon">📊</span> System Dashboard
                 </button>
-                <button class="nav-btn" data-view="view-enroll">
+                <button class="nav-btn" data-view="view-enroll" onclick="switchView('view-enroll')">
                     <span class="icon">👤</span> Face Registration
                 </button>
-                <button class="nav-btn" data-view="view-video">
+                <button class="nav-btn" data-view="view-video" onclick="switchView('view-video')">
                     <span class="icon">🎬</span> Video Tracking Engine
                 </button>
-                <button class="nav-btn" data-view="view-webcam">
+                <button class="nav-btn" data-view="view-webcam" onclick="switchView('view-webcam')">
                     <span class="icon">📷</span> Live Camera Feed
                 </button>
-                <button class="nav-btn" data-view="view-attendance">
+                <button class="nav-btn" data-view="view-attendance" onclick="switchView('view-attendance')">
                     <span class="icon">📄</span> Attendance Reports
                 </button>
-                <button class="nav-btn" data-view="view-osint">
+                <button class="nav-btn" data-view="view-osint" onclick="switchView('view-osint')">
                     <span class="icon">🔍</span> OSINT Reverse Search
                 </button>
 
@@ -733,6 +733,6 @@
     </div>
 
     <!-- JavaScript Application Logic -->
-    <script src="/static/app.js?v=7.0"></script>
+    <script src="/static/app.js?v=8.0"></script>
 </body>
 </html>
