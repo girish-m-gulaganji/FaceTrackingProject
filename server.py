@@ -763,6 +763,21 @@ def download_attendance(filename: str):
         raise HTTPException(status_code=404, detail="CSV file not found.")
     return FileResponse(file_path, media_type="text/csv", filename=filename)
 
+@app.get("/api/attendance-details/{filename}")
+def get_attendance_details(filename: str):
+    file_path = os.path.join("attendance_logs", filename)
+    if not os.path.exists(file_path):
+        logs = db_sql.get_attendance_logs(limit=100)
+        return {"success": True, "records": logs}
+
+    try:
+        df = pd.read_csv(file_path)
+        records = df.fillna("").to_dict(orient="records")
+        return {"success": True, "records": records}
+    except Exception as e:
+        logs = db_sql.get_attendance_logs(limit=100)
+        return {"success": True, "records": logs}
+
 @app.get("/api/generate-excel/{filename}")
 def download_excel_attendance(filename: str):
     csv_path = os.path.join("attendance_logs", filename)

@@ -678,34 +678,38 @@ async function loadAttendanceDetails(filename) {
     }
 
     try {
-        const res = await fetch(`/api/download-attendance/${encodeURIComponent(filename)}`);
-        const text = await res.text();
+        const res = await fetch(`/api/attendance-details/${encodeURIComponent(filename)}`);
+        const data = await res.json();
+        const records = data.records || [];
 
-        const lines = text.trim().split(/\r?\n/);
-        if (lines.length <= 1) {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center">CSV file is empty.</td></tr>';
+        if (records.length === 0) {
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center">No attendance records found in report.</td></tr>';
             return;
         }
 
-        const rows = lines.slice(1).map(line => {
-            const cols = line.split(',').map(c => c.replace(/"/g, '').trim());
-            if (!cols[0]) return '';
+        const rows = records.map(r => {
+            const name = r.person_name || r.Name || r.name || '';
+            const status = r.status || r.Status || 'Present';
+            const timestamp = r.timestamp || r.Timestamp || r.time || '';
+            const video_time = r.video_time || r['Video Time'] || 'N/A';
+            const frame = r.frame_number !== undefined ? r.frame_number : (r.Frame !== undefined ? r.Frame : '0');
+
             return `
                 <tr>
-                    <td><strong>${escapeHtml(cols[0] || '')}</strong></td>
-                    <td><span class="status-dot green" style="display:inline-block; margin-right:4px;"></span>${escapeHtml(cols[1] || 'Present')}</td>
-                    <td>${escapeHtml(cols[2] || '')}</td>
-                    <td>${escapeHtml(cols[3] || 'N/A')}</td>
-                    <td>${escapeHtml(cols[4] || '0')}</td>
+                    <td><strong>${escapeHtml(name)}</strong></td>
+                    <td><span class="status-dot green" style="display:inline-block; margin-right:4px;"></span>${escapeHtml(status)}</td>
+                    <td>${escapeHtml(timestamp)}</td>
+                    <td>${escapeHtml(video_time)}</td>
+                    <td>${escapeHtml(frame)}</td>
                 </tr>
             `;
-        }).filter(r => r !== '').join('');
+        }).join('');
 
-        if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" class="text-center">No records found in report.</td></tr>';
+        if (tbody) tbody.innerHTML = rows;
 
     } catch (err) {
-        console.error('Error reading CSV:', err);
-        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error reading CSV file.</td></tr>';
+        console.error('Error fetching attendance details:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading attendance report details.</td></tr>';
     }
 }
 
