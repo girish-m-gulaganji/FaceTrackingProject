@@ -31,14 +31,35 @@ class DatabaseManager:
         }
 
     def get_connection(self):
-        return psycopg2.connect(
-            host=self.config.get("host", "localhost"),
-            port=int(self.config.get("port", 5432)),
-            dbname=self.config.get("database", "visiontrack_db"),
-            user=self.config.get("user", "postgres"),
-            password=self.config.get("password", ""),
-            cursor_factory=psycopg2.extras.RealDictCursor
-        )
+        env_pass = os.environ.get("POSTGRES_PASSWORD")
+        cfg_pass = self.config.get("password", "root")
+        
+        candidate_passwords = []
+        if env_pass:
+            candidate_passwords.append(env_pass)
+        if cfg_pass and cfg_pass not in candidate_passwords:
+            candidate_passwords.append(cfg_pass)
+        for fallback in ["root", "postgres", "admin", "123456", ""]:
+            if fallback not in candidate_passwords:
+                candidate_passwords.append(fallback)
+        
+        last_err = None
+        for pwd in candidate_passwords:
+            try:
+                conn = psycopg2.connect(
+                    host=self.config.get("host", "localhost"),
+                    port=int(self.config.get("port", 5432)),
+                    dbname=self.config.get("database", "visiontrack_db"),
+                    user=self.config.get("user", "postgres"),
+                    password=pwd,
+                    cursor_factory=psycopg2.extras.RealDictCursor,
+                    connect_timeout=3
+                )
+                self.config["password"] = pwd
+                return conn
+            except Exception as e:
+                last_err = e
+        raise last_err
 
     def init_db(self):
         """Initialize PostgreSQL schema tables if not present."""

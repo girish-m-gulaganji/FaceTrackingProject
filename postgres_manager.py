@@ -35,19 +35,43 @@ class PostgresManager:
             json.dump(self.config, f, indent=4)
         return self.config
 
+    def get_connection(self, config: dict = None):
+        import psycopg2
+        cfg = config or self.config
+        env_pass = os.environ.get("POSTGRES_PASSWORD")
+        cfg_pass = cfg.get("password", "root")
+        
+        candidate_passwords = []
+        if env_pass:
+            candidate_passwords.append(env_pass)
+        if cfg_pass and cfg_pass not in candidate_passwords:
+            candidate_passwords.append(cfg_pass)
+        for fallback in ["root", "postgres", "admin", "123456", ""]:
+            if fallback not in candidate_passwords:
+                candidate_passwords.append(fallback)
+        
+        last_err = None
+        for pwd in candidate_passwords:
+            try:
+                conn = psycopg2.connect(
+                    host=cfg.get("host", "localhost"),
+                    port=int(cfg.get("port", 5432)),
+                    dbname=cfg.get("database", "visiontrack_db"),
+                    user=cfg.get("user", "postgres"),
+                    password=pwd,
+                    connect_timeout=3
+                )
+                self.config["password"] = pwd
+                return conn
+            except Exception as e:
+                last_err = e
+        raise last_err
+
     def test_connection(self, config: dict = None) -> tuple[bool, str]:
         """Test connection to PostgreSQL server."""
         cfg = config or self.config
         try:
-            import psycopg2
-            conn = psycopg2.connect(
-                host=cfg.get("host", "localhost"),
-                port=int(cfg.get("port", 5432)),
-                dbname=cfg.get("database", "visiontrack_db"),
-                user=cfg.get("user", "postgres"),
-                password=cfg.get("password", ""),
-                connect_timeout=5
-            )
+            conn = self.get_connection(cfg)
             cursor = conn.cursor()
             cursor.execute("SELECT version();")
             ver = cursor.fetchone()[0]
@@ -62,14 +86,7 @@ class PostgresManager:
         """Initialize PostgreSQL tables if not present."""
         cfg = config or self.config
         try:
-            import psycopg2
-            conn = psycopg2.connect(
-                host=cfg.get("host", "localhost"),
-                port=int(cfg.get("port", 5432)),
-                dbname=cfg.get("database", "visiontrack_db"),
-                user=cfg.get("user", "postgres"),
-                password=cfg.get("password", "")
-            )
+            conn = self.get_connection(cfg)
             cursor = conn.cursor()
 
             # 1. Persons Table

@@ -80,7 +80,7 @@ def logout(session: Optional[str] = Form(None)):
 @app.get("/api/auth-status")
 def auth_status(token: Optional[str] = None):
     default_token = "sess_default_admin"
-    active_sessions[default_token] = ADMIN_USER
+    active_sessions.add(default_token)
     return {"authenticated": True, "user": ADMIN_USER, "token": default_token}
 
 @app.get("/")
