@@ -12,6 +12,33 @@
     <link rel="stylesheet" href="/static/styles.css?v=2.0">
     <!-- Chart.js CDN for Interactive Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function switchView(targetView) {
+            if (!targetView) return;
+            var navButtons = document.querySelectorAll('.nav-btn');
+            var viewPanels = document.querySelectorAll('.view-panel');
+
+            navButtons.forEach(function(b) {
+                if (b.getAttribute('data-view') === targetView) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+
+            viewPanels.forEach(function(p) {
+                if (p.id === targetView) {
+                    p.classList.add('active');
+                    p.style.display = 'block';
+                } else {
+                    p.classList.remove('active');
+                    p.style.display = 'none';
+                }
+            });
+
+            if (window.triggerViewLoad) window.triggerViewLoad(targetView);
+        }
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -733,6 +760,6 @@
     </div>
 
     <!-- JavaScript Application Logic -->
-    <script src="/static/app.js?v=8.0"></script>
+    <script src="/static/app.js?v=9.0"></script>
 </body>
 </html>

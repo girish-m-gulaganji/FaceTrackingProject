@@ -36,40 +36,43 @@ async function checkAuthStatus() {
 }
 
 // Admin Login Form Submit
-document.getElementById('form-admin-login').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('login-username').value.trim();
-    const password = document.getElementById('login-password').value;
-    const alertBox = document.getElementById('login-alert');
+const formAdminLogin = document.getElementById('form-admin-login');
+if (formAdminLogin) {
+    formAdminLogin.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+        const alertBox = document.getElementById('login-alert');
 
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
 
-    alertBox.style.display = 'none';
+        alertBox.style.display = 'none';
 
-    try {
-        const res = await fetch('/api/login', { method: 'POST', body: formData });
-        const data = await res.json();
+        try {
+            const res = await fetch('/api/login', { method: 'POST', body: formData });
+            const data = await res.json();
 
-        if (res.ok && data.success) {
-            activeToken = data.token;
-            localStorage.setItem('admin_token', activeToken);
-            document.getElementById('login-modal').style.display = 'none';
-            document.getElementById('session-username').innerText = data.username;
-            loadStats();
-            loadPersons();
-        } else {
+            if (res.ok && data.success) {
+                activeToken = data.token;
+                localStorage.setItem('admin_token', activeToken);
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('session-username').innerText = data.username;
+                loadStats();
+                loadPersons();
+            } else {
+                alertBox.className = 'alert-box error';
+                alertBox.style.display = 'block';
+                alertBox.innerText = data.detail || 'Invalid login credentials.';
+            }
+        } catch (err) {
             alertBox.className = 'alert-box error';
             alertBox.style.display = 'block';
-            alertBox.innerText = data.detail || 'Invalid login credentials.';
+            alertBox.innerText = 'Network error during login.';
         }
-    } catch (err) {
-        alertBox.className = 'alert-box error';
-        alertBox.style.display = 'block';
-        alertBox.innerText = 'Network error during login.';
-    }
-});
+    });
+}
 
 // Admin Logout
 async function logoutAdmin() {
@@ -109,6 +112,14 @@ function switchView(targetView) {
     });
 
     try {
+        triggerViewLoad(targetView);
+    } catch (err) {
+        console.warn('Sub-task load notice:', err);
+    }
+}
+
+function triggerViewLoad(targetView) {
+    try {
         if (targetView === 'view-dashboard') {
             loadStats();
             loadPersons();
@@ -128,7 +139,9 @@ function switchView(targetView) {
         console.warn('Sub-task load notice:', err);
     }
 }
+
 window.switchView = switchView;
+window.triggerViewLoad = triggerViewLoad;
 
 function initNavigation() {
     const navButtons = document.querySelectorAll('.nav-btn');
@@ -211,17 +224,19 @@ async function deletePerson(name) {
 }
 
 // Form 1: File Enrollment
-document.getElementById('form-file-enroll').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('enroll-name-file').value.trim();
-    const fileInput = document.getElementById('enroll-file');
-    const alertBox = document.getElementById('file-enroll-alert');
+const formFileEnroll = document.getElementById('form-file-enroll');
+if (formFileEnroll) {
+    formFileEnroll.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('enroll-name-file').value.trim();
+        const fileInput = document.getElementById('enroll-file');
+        const alertBox = document.getElementById('file-enroll-alert');
 
-    if (!name || fileInput.files.length === 0) return;
+        if (!name || fileInput.files.length === 0) return;
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('file', fileInput.files[0]);
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('file', fileInput.files[0]);
 
     alertBox.className = 'alert-box';
     alertBox.style.display = 'block';
@@ -245,6 +260,7 @@ document.getElementById('form-file-enroll').addEventListener('submit', async (e)
         alertBox.innerText = 'Network error during enrollment.';
     }
 });
+}
 
 // Webcam Enrollment
 let enrollStream = null;
@@ -310,57 +326,60 @@ async function captureAndEnrollWebcam() {
 }
 
 // Form 3: Bulk Batch Enrollment
-document.getElementById('form-batch-enroll').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const filesInput = document.getElementById('batch-files');
-    const alertBox = document.getElementById('batch-enroll-alert');
-    const resultsDiv = document.getElementById('batch-enroll-results');
+const formBatchEnroll = document.getElementById('form-batch-enroll');
+if (formBatchEnroll) {
+    formBatchEnroll.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const filesInput = document.getElementById('batch-files');
+        const alertBox = document.getElementById('batch-enroll-alert');
+        const resultsDiv = document.getElementById('batch-enroll-results');
 
-    if (filesInput.files.length === 0) return;
+        if (filesInput.files.length === 0) return;
 
-    const formData = new FormData();
-    for (let i = 0; i < filesInput.files.length; i++) {
-        formData.append('files', filesInput.files[i]);
-    }
-
-    alertBox.className = 'alert-box';
-    alertBox.style.display = 'block';
-    alertBox.innerText = `Processing bulk registration for ${filesInput.files.length} photo(s)...`;
-    resultsDiv.innerHTML = '';
-
-    try {
-        const res = await fetch('/api/enroll-batch', { method: 'POST', body: formData });
-        const data = await res.json();
-
-        if (res.ok) {
-            alertBox.className = 'alert-box success';
-            alertBox.innerText = `Bulk Enrollment Completed! Successfully registered ${data.results.filter(r=>r.success).length}/${data.results.length} photo(s).`;
-
-            let tableHtml = `
-                <table class="data-table">
-                    <thead><tr><th>File Name</th><th>Extracted Person Name</th><th>Status</th></tr></thead>
-                    <tbody>
-            `;
-            data.results.forEach(r => {
-                const statusBadge = r.success
-                    ? `<span class="status-dot yellow" style="display:inline-block; margin-right:4px;"></span>Registered`
-                    : `<span style="color:#ef4444;">Failed (${escapeHtml(r.message)})</span>`;
-                tableHtml += `<tr><td>${escapeHtml(r.filename)}</td><td><strong>${escapeHtml(r.name)}</strong></td><td>${statusBadge}</td></tr>`;
-            });
-            tableHtml += '</tbody></table>';
-            resultsDiv.innerHTML = tableHtml;
-
-            document.getElementById('form-batch-enroll').reset();
-            loadStats();
-        } else {
-            alertBox.className = 'alert-box error';
-            alertBox.innerText = data.detail || 'Bulk enrollment failed.';
+        const formData = new FormData();
+        for (let i = 0; i < filesInput.files.length; i++) {
+            formData.append('files', filesInput.files[i]);
         }
-    } catch (err) {
-        alertBox.className = 'alert-box error';
-        alertBox.innerText = 'Network error during bulk enrollment.';
-    }
-});
+
+        alertBox.className = 'alert-box';
+        alertBox.style.display = 'block';
+        alertBox.innerText = `Processing bulk registration for ${filesInput.files.length} photo(s)...`;
+        resultsDiv.innerHTML = '';
+
+        try {
+            const res = await fetch('/api/enroll-batch', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (res.ok) {
+                alertBox.className = 'alert-box success';
+                alertBox.innerText = `Bulk Enrollment Completed! Successfully registered ${data.results.filter(r=>r.success).length}/${data.results.length} photo(s).`;
+
+                let tableHtml = `
+                    <table class="data-table">
+                        <thead><tr><th>File Name</th><th>Extracted Person Name</th><th>Status</th></tr></thead>
+                        <tbody>
+                `;
+                data.results.forEach(r => {
+                    const statusBadge = r.success
+                        ? `<span class="status-dot yellow" style="display:inline-block; margin-right:4px;"></span>Registered`
+                        : `<span style="color:#ef4444;">Failed (${escapeHtml(r.message)})</span>`;
+                    tableHtml += `<tr><td>${escapeHtml(r.filename)}</td><td><strong>${escapeHtml(r.name)}</strong></td><td>${statusBadge}</td></tr>`;
+                });
+                tableHtml += '</tbody></table>';
+                resultsDiv.innerHTML = tableHtml;
+
+                document.getElementById('form-batch-enroll').reset();
+                loadStats();
+            } else {
+                alertBox.className = 'alert-box error';
+                alertBox.innerText = data.detail || 'Bulk enrollment failed.';
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box error';
+            alertBox.innerText = 'Network error during bulk enrollment.';
+        }
+    });
+}
 
 // Load Videos List
 async function loadVideosList() {
@@ -381,9 +400,11 @@ async function loadVideosList() {
 }
 
 // Submit Video Processing
-document.getElementById('form-process-video').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fileInput = document.getElementById('video-file-input');
+const formProcessVideo = document.getElementById('form-process-video');
+if (formProcessVideo) {
+    formProcessVideo.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('video-file-input');
     const selectExisting = document.getElementById('video-select-existing').value;
     const threshold = document.getElementById('video-thresh').value;
     const interval = document.getElementById('video-interval').value;
@@ -429,6 +450,7 @@ document.getElementById('form-process-video').addEventListener('submit', async (
         progressBox.style.display = 'none';
     }
 });
+}
 
 // Poll Video Job Progress
 function pollJobStatus(jobId) {
