@@ -578,23 +578,54 @@ async function toggleLiveSurveillance() {
     const canvas = document.getElementById('live-canvas');
     const alertBox = document.getElementById('live-surveillance-alert');
 
-            }
+    if (liveActive) {
+        liveActive = false;
+        if (liveInterval) clearInterval(liveInterval);
+        if (liveStream) {
+            liveStream.getTracks().forEach(track => track.stop());
+            liveStream = null;
+        }
+        if (video) {
+            video.srcObject = null;
+            video.style.display = 'none';
+        }
+        if (imgOutput) imgOutput.style.display = 'none';
+        if (btn) {
+            btn.className = 'btn btn-primary';
+            btn.innerText = '🔴 Turn On Camera Feed';
+        }
+        if (alertBox) alertBox.style.display = 'none';
+        return;
+    }
 
-            // Ideal resolution constraints for maximum camera hardware compatibility
-            liveStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 } }
-            });
+    try {
+        if (alertBox) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-info';
+            alertBox.innerText = '🎥 Initializing webcam hardware and InsightFace AI stream...';
+        }
+
+        liveStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+
+        if (video) {
             video.srcObject = liveStream;
-            video.style.display = 'block'; // Show raw camera feed immediately
+            video.style.display = 'block';
             try { await video.play(); } catch(e) {}
-            liveActive = true;
+        }
+
+        liveActive = true;
+        if (btn) {
             btn.className = 'btn btn-danger';
             btn.innerText = '⏹️ Stop Camera Feed';
+        }
 
-            liveInterval = setInterval(async () => {
-                if (!liveActive) return;
-                if (!video.videoWidth || !video.videoHeight) return;
+        liveInterval = setInterval(async () => {
+            if (!liveActive || !video) return;
+            if (!video.videoWidth || !video.videoHeight) return;
 
+            if (canvas) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
@@ -603,75 +634,59 @@ async function toggleLiveSurveillance() {
                 const frameBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
                 try {
-                    const checkSpoof = document.getElementById('live-anti-spoof-enable') ? document.getElementById('live-anti-spoof-enable').checked : true;
+                    const checkSpoofEl = document.getElementById('live-anti-spoof-enable');
+                    const checkSpoof = checkSpoofEl ? checkSpoofEl.checked : false;
                     const res = await fetch('/api/recognize-frame', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ image: frameBase64, threshold: 0.50, check_spoof: checkSpoof })
                     });
                     const data = await res.json();
-                    if (data.annotated_image) {
+                    if (data.annotated_image && imgOutput) {
                         imgOutput.src = data.annotated_image;
                         imgOutput.style.display = 'block';
-                        video.style.display = 'none'; // Switch to AI annotated stream
+                        video.style.display = 'none';
                     }
 
                     if (data.marked_names && data.marked_names.length > 0) {
+                        data.marked_names.forEach(name => speakGreeting(`Welcome, ${name}! Your attendance has been logged.`));
                         if (alertBox) {
                             alertBox.style.display = 'block';
                             alertBox.className = 'alert-box alert-success';
-                            alertBox.innerHTML = `✅ <strong>Attendance Marked:</strong> ${data.marked_names.join(', ')} logged at ${new Date().toLocaleTimeString()}`;
+                            alertBox.innerHTML = `✅ <strong>Attendance Logged:</strong> ${data.marked_names.join(', ')} at ${new Date().toLocaleTimeString()}`;
                         }
-                    } else if (alertBox && alertBox.className.includes('alert-info')) {
-                        alertBox.style.display = 'none';
-                    }
-
-                    if (data.detections && data.detections.length > 0) {
-                        data.detections.forEach(det => {
-                            if (det.name.includes("SPOOF")) {
-                                speakGreeting("Warning! Anti-spoofing attack detected!");
-                            } else if (det.name !== "Unknown") {
-                                const cleanName = det.name.split(' ')[0].replace(/[^a-zA-Z]/g, '');
-                                speakGreeting(`Welcome back, ${cleanName}! Attendance logged.`);
-                            } else {
-                                speakGreeting("Security Alert: Unrecognized person detected.");
-                            }
-                        });
+                        loadLiveAttendanceLogs();
                     }
                 } catch (err) {
                     console.error('Live frame recognition error:', err);
                 }
-            }, 300);
-
-        } catch (err) {
-            console.error('Camera access error:', err);
-            if (alertBox) {
-                alertBox.style.display = 'block';
-                alertBox.className = 'alert-box alert-danger';
-                let errMsg = err.message;
-                if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                    errMsg = 'Camera is locked by another application (Zoom / Skype / Windows Camera App). Please close other camera apps and click "Turn On Camera Feed" again.';
-                } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    errMsg = 'Camera permission was blocked. Please click the camera icon in your browser address bar and select "Allow".';
-                }
-                alertBox.innerText = `❌ ${errMsg}`;
-            } else {
-                alert(`Cannot access camera: ${err.message}`);
             }
-        }
-    } else {
+        }, 300);
+
+    } catch (err) {
         liveActive = false;
-        clearInterval(liveInterval);
-        if (liveStream) liveStream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        video.style.display = 'none';
-        imgOutput.src = '';
-        imgOutput.style.display = 'none';
-        btn.className = 'btn btn-primary';
-        btn.innerText = '🔴 Turn On Camera Feed';
-        if (alertBox) alertBox.style.display = 'none';
+        if (alertBox) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            let errMsg = err.message;
+            if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errMsg = 'Camera is locked by another application (Zoom / Skype / Windows Camera App). Please close other camera apps and click "Turn On Camera Feed" again.';
+            } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errMsg = 'Camera permission was blocked. Please click the camera icon in your browser address bar and select "Allow".';
+            }
+            alertBox.innerText = `❌ ${errMsg}`;
+        } else {
+            alert(`Cannot access camera: ${err.message}`);
+        }
+        if (btn) {
+            btn.className = 'btn btn-primary';
+            btn.innerText = '🔴 Turn On Camera Feed';
+        }
     }
 }
+window.toggleLiveSurveillance = toggleLiveSurveillance;
+window.startEnrollWebcam = startEnrollWebcam;
+window.captureAndEnrollWebcam = captureAndEnrollWebcam;
 
 // Load Attendance Reports List
 async function loadAttendanceList() {
