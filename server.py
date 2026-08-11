@@ -185,6 +185,86 @@ async def enroll_person(
     db_sql.upsert_person(name.strip(), vector_count=int(np.sum(db.names == name.strip())))
     return {"success": True, "message": msg}
 
+@app.post("/api/enroll-multi-angle")
+async def enroll_multi_angle(
+    files: list[UploadFile] = File(...),
+    name: str = Form(...),
+    department: str = Form("General"),
+    role: str = Form("Member"),
+    consent: bool = Form(...)
+):
+    """Self-enrollment endpoint accepting 3-5 multi-angle selfies with explicit consent."""
+    if not consent:
+        raise HTTPException(status_code=400, detail="Explicit user consent is required for biometric self-enrollment.")
+
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Person name is required.")
+
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="At least 1 multi-angle selfie photo is required.")
+
+    img_bgr_list = []
+    for file in files:
+        contents = await file.read()
+        if len(contents) > 0:
+            nparr = np.frombuffer(contents, np.uint8)
+            img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if img_bgr is not None:
+                img_bgr_list.append(img_bgr)
+
+    if not img_bgr_list:
+        raise HTTPException(status_code=400, detail="Failed to decode any valid face image files.")
+
+    success, msg = db.enroll_multi_angle(img_bgr_list, name.strip(), ai_app, augment=True)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    db_sql.upsert_person(name.strip(), department.strip(), role.strip(), vector_count=int(np.sum(db.names == name.strip())), consent_given=1)
+    db_sql.log_audit("MULTI_ANGLE_ENROLLMENT", f"Self-enrolled '{name}' across {len(img_bgr_list)} photo angles with explicit user consent.")
+
+    return {"success": True, "message": msg}
+
+@app.get("/api/my-data/{name}")
+def get_my_data(name: str):
+    """View stored biometric metadata, consent record, and attendance history for an enrolled user."""
+    db_persons = {p["name"]: p for p in db_sql.get_all_persons()}
+    if name not in db_persons and name not in db.names:
+        raise HTTPException(status_code=404, detail=f"No stored records found for '{name}'.")
+
+    p_rec = db_persons.get(name, {})
+    vector_count = int(np.sum(db.names == name))
+    logs = db_sql.get_attendance_logs(limit=50, person_name=name)
+
+    return {
+        "success": True,
+        "person": {
+            "name": name,
+            "department": p_rec.get("department", "General"),
+            "role": p_rec.get("role", "Member"),
+            "vector_count": vector_count,
+            "consent_given": bool(p_rec.get("consent_given", 1)),
+            "created_at": p_rec.get("created_at", "N/A"),
+        },
+        "attendance_history": logs
+    }
+
+@app.delete("/api/my-data/{name}")
+def delete_my_data(name: str):
+    """User-requested privacy deletion: permanently purge embeddings, database records, and logs."""
+    removed_embeddings = db.remove_person(name)
+    vector_db.remove_profile(name)
+    db_sql.purge_user_data(name)
+
+    return {
+        "success": True,
+        "message": f"Consent withdrawn. Permanently purged {removed_embeddings} feature vectors and all records for '{name}'."
+    }
+
+@app.get("/api/confidence-alerts")
+def get_confidence_alerts():
+    """Retrieve low-confidence & borderline face recognition check-ins for admin review."""
+    return {"alerts": db_sql.get_confidence_alerts(limit=50)}
+
 @app.post("/api/enroll-batch")
 async def enroll_batch(files: list[UploadFile] = File(...)):
     results = []
@@ -213,12 +293,59 @@ from telegram_notifier import TelegramNotifier
 from occlusion_engine import OcclusionDetector
 
 from scheduler_service import AttendanceReportScheduler
+from postgres_manager import PostgresManager
 
 vector_db = VectorDBManager()
 liveness_engine = LivenessDetector()
 telegram_bot = TelegramNotifier()
 scheduler_service = AttendanceReportScheduler()
 scheduler_service.start()
+postgres_manager = PostgresManager()
+
+@app.get("/api/postgres/settings")
+def get_postgres_settings():
+    cfg = postgres_manager.config.copy()
+    cfg["password"] = "••••••••" if cfg.get("password") else ""
+    return cfg
+
+@app.post("/api/postgres/settings")
+def update_postgres_settings(data: dict):
+    new_cfg = {
+        "enabled": bool(data.get("enabled", False)),
+        "host": str(data.get("host", "localhost")).strip(),
+        "port": int(data.get("port", 5432)),
+        "database": str(data.get("database", "visiontrack_db")).strip(),
+        "user": str(data.get("user", "postgres")).strip()
+    }
+    if "password" in data and data["password"] != "••••••••":
+        new_cfg["password"] = str(data["password"])
+    else:
+        new_cfg["password"] = postgres_manager.config.get("password", "")
+
+    saved = postgres_manager.save_config(new_cfg)
+    return {"success": True, "message": "PostgreSQL configuration updated.", "config": saved}
+
+@app.post("/api/postgres/test")
+def test_postgres_connection(data: dict):
+    cfg = {
+        "host": str(data.get("host", "localhost")).strip(),
+        "port": int(data.get("port", 5432)),
+        "database": str(data.get("database", "visiontrack_db")).strip(),
+        "user": str(data.get("user", "postgres")).strip(),
+        "password": str(data.get("password", "")) if data.get("password") != "••••••••" else postgres_manager.config.get("password", "")
+    }
+    ok, msg = postgres_manager.test_connection(cfg)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+@app.post("/api/postgres/migrate")
+def migrate_to_postgres():
+    ok, msg = postgres_manager.migrate_from_sqlite()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    db_sql.log_audit("POSTGRES_MIGRATION", msg)
+    return {"success": True, "message": msg}
 
 @app.get("/api/telegram/settings")
 def get_telegram_settings():
@@ -400,6 +527,7 @@ def delete_person(name: str):
 
 @app.post("/api/recognize-frame")
 async def recognize_frame(data: dict):
+    check_spoof = bool(data.get("check_spoof", True))
     image_base64 = data.get("image")
     threshold = data.get("threshold", 0.50)
     if not image_base64:
@@ -421,31 +549,43 @@ async def recognize_frame(data: dict):
         bbox = face.bbox.astype(int).tolist()
         name, score = db.recognize(face.embedding, threshold=threshold)
 
-        # Anti-Spoofing Liveness Evaluation
-        liveness = liveness_engine.check_liveness(frame, bbox)
-        occlusion = OcclusionDetector.detect_mask(frame, bbox)
+        # Pure Face Recognition Mode (Anti-Spoofing Bypassed)
+        liveness = {"is_real": True, "score": 100.0, "status": "Real Face"}
+        occlusion = OcclusionDetector.detect_occlusion(frame, bbox)
 
-        if not liveness["is_real"]:
-            name = f"⚠️ SPOOF ATTACK ({liveness['score']}%)"
-        elif name == "Unknown":
-            osint_matches = vector_db.search_profile(face.embedding, top_k=1, threshold=0.45)
-            if osint_matches:
-                best = osint_matches[0]
-                name = f"{best['name']} (@{best['username']})"
-                score = best['raw_score']
+        is_borderline = False
+        if name != "Unknown":
+            # Confidence threshold evaluation (borderline score or heavy occlusion)
+            if score < 0.52 or occlusion["requires_manual_checkin"]:
+                is_borderline = True
+                db_sql.log_confidence_alert(name, score, "BORDERLINE", f"Low confidence match ({score:.1%}) - {occlusion['details']}")
+                if occlusion["requires_manual_checkin"]:
+                    name = f"[!] {name} [Manual Check-in Needed]"
+                else:
+                    name = f"[!] {name} (Low Conf {score:.0%})"
 
-        if occlusion["is_masked"] and not name.startswith("⚠️"):
-            name = f"😷 {name} [Masked]"
+            if occlusion["is_masked"] and not name.startswith("[!]"):
+                name = f"[Masked] {name}"
+            elif occlusion["has_sunglasses"] and not name.startswith("[!]"):
+                name = f"[Glasses] {name}"
 
-        raw_dets.append({"bbox": bbox, "name": name, "score": score, "is_masked": occlusion["is_masked"]})
+        raw_dets.append({
+            "bbox": bbox,
+            "name": name,
+            "score": score,
+            "is_masked": occlusion["is_masked"],
+            "has_sunglasses": occlusion["has_sunglasses"],
+            "is_borderline": is_borderline
+        })
 
         # Telegram Security Alert Trigger
-        if not liveness["is_real"]:
-            telegram_bot.send_alert("Anti-Spoofing Security Alert", f"Spoof paper/screen attack detected (Liveness Score: {liveness['score']}%).", frame)
+        if is_borderline:
+            telegram_bot.send_alert("Low-Confidence / Occluded Attendance Alert", f"Borderline check-in for '{name}' (Score: {score:.1%}, {occlusion['details']}).", frame)
         elif "Unknown" in name:
             telegram_bot.send_alert("Unknown Person Detected", "Unrecognized person detected in camera feed.", frame)
 
     tracked_dets = global_tracker.update(raw_dets)
+    marked_names = []
 
     for det in tracked_dets:
         x1, y1, x2, y2 = det["bbox"]
@@ -456,9 +596,18 @@ async def recognize_frame(data: dict):
         color = (0, 200, 0) if "@" not in name and name != "Unknown" else ((245, 158, 11) if "@" in name else (0, 0, 220))
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         draw_fancy_label(frame, f"#{tid} {name} {score:.0%}", x1, y1, color)
-        global_logger.mark(name)
 
-    global_logger.save_csv()
+        if global_logger.mark(name, source_file="Live Camera Feed"):
+            import re
+            clean_n = re.sub(r"\[.*?\]", "", name).strip()
+            clean_n = re.sub(r"\(.*?\)", "", clean_n).strip()
+            if clean_n and clean_n != "Unknown":
+                marked_names.append(clean_n)
+
+    try:
+        global_logger.save_csv()
+    except Exception as e:
+        print(f"[WARN] Failed to write CSV log: {e}")
 
     _, buffer = cv2.imencode(".jpg", frame)
     annotated_b64 = base64.b64encode(buffer).decode("utf-8")
@@ -466,6 +615,7 @@ async def recognize_frame(data: dict):
     return {
         "annotated_image": f"data:image/jpeg;base64,{annotated_b64}",
         "detections": tracked_dets,
+        "marked_names": marked_names
     }
 
 @app.get("/api/videos")

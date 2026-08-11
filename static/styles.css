@@ -1,15 +1,15 @@
 :root {
-    --bg-dark: #291e00;
-    --bg-dark-secondary: #140f00;
-    --card-bg: rgba(45, 35, 0, 0.65);
-    --card-border: rgba(245, 158, 11, 0.25);
-    --primary-gradient: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
-    --primary-gradient-hover: linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
-    --accent-gold: #fbbf24;
-    --accent-amber: #f59e0b;
-    --accent-yellow: #fde047;
-    --text-main: #fefce8;
-    --text-muted: #fef08a;
+    --bg-dark: #0F172A;
+    --bg-dark-secondary: #0B1120;
+    --card-bg: rgba(30, 58, 95, 0.65);
+    --card-border: rgba(37, 99, 235, 0.3);
+    --primary-gradient: linear-gradient(135deg, #1E3A5F 0%, #2563EB 50%, #3B82F6 100%);
+    --primary-gradient-hover: linear-gradient(135deg, #1E293B 0%, #1D4ED8 50%, #2563EB 100%);
+    --accent-gold: #60A5FA;
+    --accent-amber: #2563EB;
+    --accent-yellow: #38BDF8;
+    --text-main: #F8FAFC;
+    --text-muted: #94A3B8;
     --radius-lg: 16px;
     --radius-md: 12px;
     --radius-sm: 8px;
@@ -24,7 +24,7 @@
 
 body {
     font-family: 'Outfit', 'Inter', sans-serif;
-    background: linear-gradient(135deg, #140f00 0%, #291e00 50%, #110c00 100%);
+    background: linear-gradient(135deg, #0B1120 0%, #0F172A 50%, #1E293B 100%);
     color: var(--text-main);
     min-height: 100vh;
     overflow-x: hidden;
@@ -39,7 +39,7 @@ body {
 /* Sidebar */
 .sidebar {
     width: 280px;
-    background: rgba(18, 14, 0, 0.96);
+    background: rgba(11, 17, 32, 0.96);
     border-right: 1px solid var(--card-border);
     padding: 1.8rem 1.2rem;
     display: flex;
@@ -100,19 +100,19 @@ body {
 }
 
 .nav-btn:hover {
-    background: rgba(251, 191, 36, 0.12);
+    background: rgba(37, 99, 235, 0.15);
     color: var(--text-main);
 }
 
 .nav-btn.active {
     background: var(--primary-gradient);
-    color: #1c1300;
+    color: #ffffff;
     font-weight: 700;
-    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
 }
 
 .sidebar-status {
-    background: rgba(45, 35, 0, 0.6);
+    background: rgba(30, 58, 95, 0.6);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-md);
     padding: 1rem;
@@ -134,8 +134,13 @@ body {
 }
 
 .status-dot.green, .status-dot.yellow {
-    background: #f59e0b;
-    box-shadow: 0 0 10px #f59e0b;
+    background: #38BDF8;
+    box-shadow: 0 0 10px #38BDF8;
+}
+
+.status-dot.red {
+    background: #ef4444;
+    box-shadow: 0 0 10px #ef4444;
 }
 
 .status-details {
@@ -162,7 +167,7 @@ body {
 }
 
 .user-badge {
-    background: rgba(45, 35, 0, 0.6);
+    background: rgba(30, 58, 95, 0.6);
     border: 1px solid var(--card-border);
     padding: 0.4rem 0.9rem;
     border-radius: 20px;
@@ -196,15 +201,15 @@ body {
     border-radius: var(--radius-lg);
     padding: 2rem 2.5rem;
     margin-bottom: 2rem;
-    background-image: radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.25) 0px, transparent 50%),
-                      radial-gradient(at 100% 100%, rgba(217, 119, 6, 0.25) 0px, transparent 50%);
+    background-image: radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.3) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(30, 58, 95, 0.4) 0px, transparent 50%);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 }
 
 .hero-title {
     font-size: 2.3rem;
     font-weight: 800;
-    background: linear-gradient(135deg, #fde047 0%, #fbbf24 50%, #f59e0b 100%);
+    background: linear-gradient(135deg, #38BDF8 0%, #60A5FA 50%, #2563EB 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: -0.5px;
@@ -225,7 +230,7 @@ body {
 }
 
 .stat-card {
-    background: rgba(45, 35, 0, 0.5);
+    background: rgba(30, 58, 95, 0.5);
     backdrop-filter: blur(12px);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-md);
@@ -236,8 +241,8 @@ body {
 
 .stat-card:hover {
     transform: translateY(-3px);
-    border-color: rgba(251, 191, 36, 0.5);
-    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.25);
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
 }
 
 .stat-value {
@@ -278,6 +283,12 @@ body {
     gap: 1.5rem;
 }
 
+.grid-3col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.2rem;
+}
+
 /* Form Styling */
 .form-layout {
     display: flex;
@@ -304,8 +315,8 @@ label {
     color: var(--text-muted);
 }
 
-input[type="text"], input[type="password"], input[type="file"], select {
-    background: rgba(18, 14, 0, 0.7);
+input[type="text"], input[type="password"], input[type="file"], input[type="time"], input[type="email"], select {
+    background: rgba(11, 17, 32, 0.75);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-sm);
     padding: 0.75rem 1rem;
@@ -316,9 +327,9 @@ input[type="text"], input[type="password"], input[type="file"], select {
     transition: var(--transition-fast);
 }
 
-input[type="text"]:focus, input[type="password"]:focus, select:focus {
-    border-color: #fbbf24;
-    box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+input[type="text"]:focus, input[type="password"]:focus, input[type="time"]:focus, input[type="email"]:focus, select:focus {
+    border-color: #38BDF8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
 }
 
 /* Buttons */
@@ -340,34 +351,34 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 
 .btn-primary {
     background: var(--primary-gradient);
-    color: #1c1300;
+    color: #ffffff;
     font-weight: 700;
-    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
 .btn-primary:hover {
     background: var(--primary-gradient-hover);
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
     transform: translateY(-1px);
 }
 
 .btn-secondary {
-    background: rgba(251, 191, 36, 0.15);
+    background: rgba(37, 99, 235, 0.18);
     color: var(--text-main);
     border: 1px solid var(--card-border);
 }
 
 .btn-secondary:hover {
-    background: rgba(251, 191, 36, 0.25);
+    background: rgba(37, 99, 235, 0.3);
 }
 
 .btn-danger {
-    background: #ef4444;
+    background: #dc2626;
     color: #ffffff;
 }
 
 .btn-danger:hover {
-    background: #dc2626;
+    background: #b91c1c;
 }
 
 .btn-large {
@@ -398,7 +409,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 }
 
 .data-table th {
-    background: rgba(18, 14, 0, 0.85);
+    background: rgba(11, 17, 32, 0.85);
     color: var(--accent-yellow);
     font-size: 0.85rem;
     text-transform: uppercase;
@@ -406,7 +417,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 }
 
 .data-table tr:hover {
-    background: rgba(251, 191, 36, 0.05);
+    background: rgba(37, 99, 235, 0.1);
 }
 
 /* Alert Boxes */
@@ -418,18 +429,25 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
     display: none;
 }
 
-.alert-box.success {
+.alert-box.success, .alert-box.alert-success {
     display: block;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid #f59e0b;
-    color: #fde047;
+    background: rgba(37, 99, 235, 0.2);
+    border: 1px solid #2563EB;
+    color: #60A5FA;
 }
 
-.alert-box.error {
+.alert-box.error, .alert-box.alert-danger {
     display: block;
     background: rgba(239, 68, 68, 0.2);
     border: 1px solid #ef4444;
     color: #f87171;
+}
+
+.alert-box.alert-info {
+    display: block;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid #38BDF8;
+    color: #7dd3fc;
 }
 
 /* Progress Bar */
@@ -439,7 +457,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 
 .progress-bar-wrap {
     height: 12px;
-    background: rgba(18, 14, 0, 0.8);
+    background: rgba(11, 17, 32, 0.8);
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid var(--card-border);
@@ -487,7 +505,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(12, 9, 0, 0.92);
+    background: rgba(11, 17, 32, 0.94);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     z-index: 9999;
@@ -498,14 +516,14 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 }
 
 .login-card {
-    background: rgba(45, 35, 0, 0.85);
-    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(30, 58, 95, 0.85);
+    border: 1px solid rgba(37, 99, 235, 0.4);
     border-radius: 20px;
     width: 100%;
     max-width: 440px;
     padding: 2.5rem 2rem;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
-    background-image: radial-gradient(at 50% 0%, rgba(245, 158, 11, 0.3) 0px, transparent 70%);
+    background-image: radial-gradient(at 50% 0%, rgba(37, 99, 235, 0.35) 0px, transparent 70%);
     animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 

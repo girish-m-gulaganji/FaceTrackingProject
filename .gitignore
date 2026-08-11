@@ -20,6 +20,11 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Databases & Generated Logs
+*.db
+attendance_logs/*.pdf
+attendance_logs/*.csv
+
 # Video outputs & large uploads
 input_videos/*
 output_videos/*

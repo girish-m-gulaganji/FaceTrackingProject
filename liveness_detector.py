@@ -4,7 +4,7 @@ import numpy as np
 class LivenessDetector:
     """Texture frequency and Laplacian variance anti-spoofing detector."""
 
-    def __init__(self, laplacian_threshold: float = 85.0):
+    def __init__(self, laplacian_threshold: float = 25.0):
         self.laplacian_threshold = laplacian_threshold
 
     def check_liveness(self, frame: np.ndarray, bbox: list):

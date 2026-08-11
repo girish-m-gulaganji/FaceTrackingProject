@@ -53,6 +53,18 @@ class AttendanceReportScheduler:
         body = f"VisionTrack AI Automated Report Dispatch\n\nDate: {today_str}\n\nPDF & CSV reports have been generated and attached."
 
         sent = self.notifier.send_alert(subject, body)
+        
+        # Telegram Automated Summary Alert
+        telegram_sent = False
+        try:
+            from telegram_notifier import TelegramNotifier
+            telegram_bot = TelegramNotifier()
+            if telegram_bot.enabled:
+                tg_msg = f"📊 *Daily Attendance PDF Executive Summary*\n📅 *Date*: {today_str}\n\nPDF & CSV reports generated successfully."
+                telegram_sent = telegram_bot.send_alert("Daily Report Summary", tg_msg)
+        except Exception as e:
+            print(f"[WARN] Telegram report dispatch error: {e}")
+
         self.config["last_run_date"] = today_str
         self.save_config(self.config)
 
@@ -62,7 +74,8 @@ class AttendanceReportScheduler:
             "csv": os.path.basename(csv_file),
             "excel": os.path.basename(excel_file),
             "pdf": os.path.basename(pdf_file),
-            "email_sent": sent
+            "email_sent": sent,
+            "telegram_sent": telegram_sent
         }
 
     def _loop(self):

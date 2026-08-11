@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2.0">
     <!-- Chart.js CDN for Interactive Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -109,18 +109,20 @@
                 <!-- Interactive Visual Analytics Charts Grid -->
                 <div class="grid-2col" style="margin-bottom: 2rem;">
                     <div class="card-panel" style="margin-bottom:0;">
-                        <div class="panel-header">
+                        <div class="panel-header" style="flex-direction:column; align-items:flex-start; gap:0.2rem;">
                             <h3>📈 Daily Attendance Trend</h3>
+                            <p style="color:var(--text-muted); font-size:0.82rem; margin:0;">Tracks unique face recognition check-ins per day over the past week.</p>
                         </div>
-                        <div style="position:relative; height:240px;">
+                        <div style="position:relative; height:240px; margin-top:0.5rem;">
                             <canvas id="chart-attendance-trend"></canvas>
                         </div>
                     </div>
                     <div class="card-panel" style="margin-bottom:0;">
-                        <div class="panel-header">
+                        <div class="panel-header" style="flex-direction:column; align-items:flex-start; gap:0.2rem;">
                             <h3>🏢 Department Breakdown</h3>
+                            <p style="color:var(--text-muted); font-size:0.82rem; margin:0;">Distribution of present personnel grouped by company department.</p>
                         </div>
-                        <div style="position:relative; height:240px; display:flex; justify-content:center;">
+                        <div style="position:relative; height:240px; display:flex; justify-content:center; margin-top:0.5rem;">
                             <canvas id="chart-department-breakdown"></canvas>
                         </div>
                     </div>
@@ -146,6 +148,80 @@
                             <tbody id="persons-table-body">
                                 <tr>
                                     <td colspan="6" class="text-center">Loading database...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Late Arrivals & Absence Streaks Grid -->
+                <div class="grid-2col" style="margin-top:1.5rem;">
+                    <div class="card-panel" style="margin-bottom:0;">
+                        <div class="panel-header">
+                            <h3>⏱️ Late Arrivals (Today)</h3>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Person Name</th>
+                                        <th>Arrival Time</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="late-arrivals-body">
+                                    <tr>
+                                        <td colspan="3" class="text-center">No late arrivals logged today.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-panel" style="margin-bottom:0;">
+                        <div class="panel-header">
+                            <h3>🚨 Absence Streaks (2+ Days)</h3>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Person Name</th>
+                                        <th>Department</th>
+                                        <th>Days Absent</th>
+                                        <th>Last Seen</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="absence-streaks-body">
+                                    <tr>
+                                        <td colspan="4" class="text-center">No absence streaks detected.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confidence Alert Review Queue -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>⚠️ Low-Confidence & Occlusion Review Queue</h3>
+                        <button class="btn btn-secondary" onclick="loadConfidenceAlerts()">🔄 Refresh Queue</button>
+                    </div>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:-0.3rem; margin-bottom:1rem;">Flagged borderline matches (confidence between 35% and 52%) or heavily occluded check-ins requiring administrative review.</p>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Candidate Name</th>
+                                    <th>Confidence Score</th>
+                                    <th>Status</th>
+                                    <th>Occlusion Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="confidence-alerts-body">
+                                <tr>
+                                    <td colspan="5" class="text-center">No borderline alerts flagged.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -228,6 +304,49 @@
                     </form>
                     <div id="schedule-alert" class="alert-box"></div>
                 </div>
+
+                <!-- PostgreSQL Enterprise Server Card -->
+                <div class="card-panel" style="margin-top:1.5rem;">
+                    <div class="panel-header">
+                        <h3>🐘 PostgreSQL Enterprise Database Engine</h3>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-secondary" onclick="testPostgresConnection()">⚡ Test PostgreSQL Connection</button>
+                        </div>
+                    </div>
+                    <form id="form-postgres-config" class="form-layout">
+                        <div class="grid-3col">
+                            <div class="form-group">
+                                <label for="pg-host">PostgreSQL Host</label>
+                                <input type="text" id="pg-host" placeholder="localhost" value="localhost">
+                            </div>
+                            <div class="form-group">
+                                <label for="pg-port">Port</label>
+                                <input type="text" id="pg-port" placeholder="5432" value="5432">
+                            </div>
+                            <div class="form-group">
+                                <label for="pg-database">Database Name</label>
+                                <input type="text" id="pg-database" placeholder="visiontrack_db" value="visiontrack_db">
+                            </div>
+                        </div>
+                        <div class="grid-2col">
+                            <div class="form-group">
+                                <label for="pg-user">Database Username</label>
+                                <input type="text" id="pg-user" placeholder="postgres" value="postgres">
+                            </div>
+                            <div class="form-group">
+                                <label for="pg-password">Password</label>
+                                <input type="password" id="pg-password" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <div class="grid-2col" style="align-items:center;">
+                            <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer;">
+                                <input type="checkbox" id="pg-enable" style="width:auto;"> Enable PostgreSQL Enterprise Engine
+                            </label>
+                            <button type="submit" class="btn btn-primary">💾 Save PostgreSQL Settings</button>
+                        </div>
+                    </form>
+                    <div id="postgres-alert" class="alert-box"></div>
+                </div>
             </section>
 
             <!-- VIEW 2: FACE REGISTRATION -->
@@ -237,10 +356,70 @@
                     <p class="hero-subtitle">Extract 512-D ArcFace vectors from image files or webcam snapshots</p>
                 </div>
 
+                <!-- Multi-Angle Consent Self-Enrollment Card -->
+                <div class="card-panel" style="margin-bottom:1.5rem; border: 1px solid var(--accent-amber);">
+                    <div class="panel-header">
+                        <h3>🤳 Multi-Angle Self-Enrollment (Consent-Based)</h3>
+                        <span style="background: rgba(37, 99, 235, 0.2); color: var(--accent-yellow); padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">Recommended for Highest Accuracy</span>
+                    </div>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:-0.3rem; margin-bottom:1rem;">
+                        Upload 3 to 5 selfies captured from different angles (Front, Left Profile, Right Profile, with/without glasses). We generate averaged 512-D vectors for robust matching!
+                    </p>
+                    <form id="form-multi-enroll" class="form-layout">
+                        <div class="grid-3col">
+                            <div class="form-group">
+                                <label for="multi-name">Full Person Name</label>
+                                <input type="text" id="multi-name" placeholder="e.g. Alice Smith" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="multi-dept">Department</label>
+                                <input type="text" id="multi-dept" placeholder="e.g. AI Engineering">
+                            </div>
+                            <div class="form-group">
+                                <label for="multi-role">Role</label>
+                                <input type="text" id="multi-role" placeholder="e.g. Senior Researcher">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="multi-files">Select 3–5 Multi-Angle Selfies (JPG, PNG)</label>
+                            <input type="file" id="multi-files" accept="image/*" multiple required>
+                        </div>
+                        <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer; font-size:0.85rem; color:var(--accent-yellow); margin-bottom:1rem; font-weight:500;">
+                            <input type="checkbox" id="multi-consent-check" required style="width:auto;"> ☑️ I explicitly consent to registering my 512-D biometric feature embeddings for attendance processing.
+                        </label>
+                        <button type="submit" class="btn btn-primary" style="width:100%;">✨ Self-Enroll Multi-Angle Photos</button>
+                    </form>
+                    <div id="multi-enroll-alert" class="alert-box"></div>
+                </div>
+
+                <!-- My Data & Privacy Management Card -->
+                <div class="card-panel" style="margin-bottom:1.5rem;">
+                    <div class="panel-header">
+                        <h3>🔒 My Data & Privacy Management</h3>
+                    </div>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:-0.3rem; margin-bottom:1rem;">
+                        Enrolled individuals can view their stored biometric metadata or request permanent deletion (GDPR/Privacy Right to be Forgotten).
+                    </p>
+                    <div class="form-layout">
+                        <div class="grid-2col" style="align-items:flex-end;">
+                            <div class="form-group">
+                                <label for="mydata-name-input">Enrolled Person Name</label>
+                                <input type="text" id="mydata-name-input" placeholder="e.g. Alice Smith">
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" onclick="lookupMyData()" class="btn btn-secondary">🔍 View My Stored Record</button>
+                                <button type="button" onclick="purgeMyData()" class="btn btn-danger" style="background:#dc2626; color:#fff;">🗑️ Purge & Delete All My Data</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="mydata-alert" class="alert-box"></div>
+                    <div id="mydata-results" style="margin-top:1rem; display:none; background:var(--bg-secondary); padding:1rem; border-radius:8px;"></div>
+                </div>
+
                 <div class="grid-2col">
-                    <!-- Option A: File Upload -->
+                    <!-- Option A: Single File Upload -->
                     <div class="card-panel">
-                        <h3>📁 Upload Photo</h3>
+                        <h3>📁 Single Photo Upload</h3>
                         <form id="form-file-enroll" class="form-layout">
                             <div class="form-group">
                                 <label for="enroll-name-file">Full Person Name</label>
@@ -404,19 +583,20 @@
                 <div class="card-panel">
                     <div class="panel-header">
                         <h3>Live Camera Feed</h3>
-                        <div class="btn-group" style="align-items:center;">
-                            <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer; font-size:0.85rem; color:var(--text-muted); margin-right:1rem;">
-                                <input type="checkbox" checked id="live-voice-enable" style="width:auto;"> 🔊 AI Voice Greetings & Audio Alerts
+                        <div class="btn-group" style="align-items:center; gap:1rem;">
+                            <label style="display:flex; gap:0.4rem; align-items:center; cursor:pointer; font-size:0.85rem; color:var(--text-muted);">
+                                <input type="checkbox" checked id="live-voice-enable" style="width:auto;"> 🔊 AI Voice Greetings
                             </label>
                             <button id="btn-toggle-live" class="btn btn-primary" onclick="toggleLiveSurveillance()">🔴 Turn On Camera Feed</button>
                         </div>
                     </div>
 
                     <div class="live-stream-box">
-                        <video id="live-webcam-element" autoplay playsinline muted style="display:none;"></video>
-                        <img id="live-annotated-output" alt="Live Camera Recognition" class="live-preview-img">
+                        <video id="live-webcam-element" autoplay playsinline muted style="display:none; width:100%; max-height:480px; object-fit:contain;"></video>
+                        <img id="live-annotated-output" alt="Live Camera Recognition" class="live-preview-img" style="display:none;">
                         <canvas id="live-canvas" style="display:none;"></canvas>
                     </div>
+                    <div id="live-surveillance-alert" class="alert-box"></div>
                 </div>
             </section>
 
@@ -461,6 +641,7 @@
                         </table>
                     </div>
                 </div>
+            </section>
 
             <!-- VIEW 6: OSINT REVERSE SEARCH -->
             <section id="view-osint" class="view-panel">
@@ -492,7 +673,7 @@
                     </div>
                 </div>
             </section>
-
+        </main>
     </div>
 
     <!-- Admin Login Screen Overlay Modal -->
@@ -522,6 +703,6 @@
     </div>
 
     <!-- JavaScript Application Logic -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

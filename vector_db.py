@@ -78,6 +78,25 @@ class VectorDBManager:
 
         return results
 
+    def remove_profile(self, name: str):
+        """Remove profile and vector embeddings for a given person name."""
+        if len(self.metadata) == 0:
+            return 0
+
+        indices_to_keep = [i for i, meta in enumerate(self.metadata) if meta.get("name") != name]
+        removed_count = len(self.metadata) - len(indices_to_keep)
+
+        if removed_count > 0:
+            if len(indices_to_keep) > 0 and len(self.embeddings) > 0:
+                self.embeddings = self.embeddings[indices_to_keep]
+            else:
+                self.embeddings = np.empty((0, 512), dtype=np.float32)
+
+            self.metadata = [self.metadata[i] for i in indices_to_keep]
+            self.save()
+
+        return removed_count
+
 if __name__ == "__main__":
     db = VectorDBManager()
     print(f"[INFO] VectorDB Initialized. Stored vectors: {len(db.embeddings)}")

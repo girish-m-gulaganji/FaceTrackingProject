@@ -1,11 +1,24 @@
+import os
 import cv2
 import re
+import base64
 import numpy as np
 
 try:
     import pytesseract
+    # Auto-set Windows Tesseract PATH if present
+    for t_path in [r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]:
+        if os.path.exists(t_path):
+            pytesseract.pytesseract.tesseract_cmd = t_path
+            break
 except ImportError:
     pytesseract = None
+
+try:
+    import easyocr
+    reader = easyocr.Reader(['en'], gpu=False)
+except Exception:
+    reader = None
 
 try:
     import fitz  # PyMuPDF for PDF parsing
@@ -15,26 +28,36 @@ except ImportError:
 class PaperOCREnroller:
     """Optical Character Recognition (OCR) paper document & PDF face auto-enrollment engine."""
 
-    @staticmethod
-    def extract_text_from_image(img_bgr: np.ndarray) -> str:
-        """Extract text written or printed on paper document using Tesseract or OpenCV OCR heuristics."""
+    @classmethod
+    def extract_text_from_image(cls, img_bgr: np.ndarray) -> str:
+        """Extract written or printed name from paper document using EasyOCR / Tesseract / OpenCV text heuristics."""
         if img_bgr is None:
             return ""
 
-        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-        
-        # Preprocessing: Adaptive Thresholding for crisp text extraction
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-
-        if pytesseract is not None:
+        # 1. Try EasyOCR if available
+        if reader is not None:
             try:
-                text = pytesseract.image_to_string(thresh)
-                clean_text = re.sub(r'[^a-zA-Z\s]', '', text).strip()
-                words = [w for w in clean_text.split() if len(w) > 2]
+                ocr_results = reader.readtext(img_bgr, detail=0)
+                full_text = " ".join(ocr_results)
+                clean_text = re.sub(r'[^a-zA-Z\s]', '', full_text).strip()
+                words = [w for w in clean_text.split() if len(w) >= 2 and w.lower() not in ['name', 'id', 'card', 'date', 'dept', 'role', 'person', 'signature']]
                 if words:
                     return " ".join(words[:3]).title()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WARN] EasyOCR error: {e}")
+
+        # 2. Try PyTesseract
+        if pytesseract is not None:
+            try:
+                gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+                thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+                text = pytesseract.image_to_string(thresh)
+                clean_text = re.sub(r'[^a-zA-Z\s]', '', text).strip()
+                words = [w for w in clean_text.split() if len(w) >= 2 and w.lower() not in ['name', 'id', 'card', 'date', 'dept', 'role', 'person', 'signature']]
+                if words:
+                    return " ".join(words[:3]).title()
+            except Exception as e:
+                print(f"[WARN] Tesseract error: {e}")
 
         return ""
 
@@ -78,12 +101,30 @@ class PaperOCREnroller:
 
         for idx, img in enumerate(images):
             ocr_name = cls.extract_text_from_image(img)
-            person_name = ocr_name if ocr_name else (fallback_name if fallback_name else f"Paper_Subject_{idx+1}")
-            person_name = person_name.title().strip()
+
+            # Clean name from filename if OCR returns blank
+            raw_file_name = os.path.splitext(filename)[0].replace("-", " ").replace("_", " ")
+            raw_file_name = re.sub(r'[^a-zA-Z\s]', '', raw_file_name).strip().title()
+
+            if ocr_name:
+                person_name = ocr_name
+            elif fallback_name and len(fallback_name.strip()) > 0:
+                person_name = fallback_name.strip().title()
+            elif raw_file_name and len(raw_file_name) > 2 and raw_file_name.lower() not in ['document', 'scanned', 'image', 'photo', 'pdf', 'file']:
+                person_name = raw_file_name
+            else:
+                person_name = f"Paper Subject {idx+1}"
 
             faces = ai_app.get(img)
             if not faces:
                 continue
+
+            # Crop face for visual verification preview
+            face_bbox = faces[0].bbox.astype(int)
+            x1, y1, x2, y2 = max(0, face_bbox[0]), max(0, face_bbox[1]), min(img.shape[1], face_bbox[2]), min(img.shape[0], face_bbox[3])
+            face_crop = img[y1:y2, x1:x2]
+            _, buffer = cv2.imencode('.jpg', face_crop)
+            crop_base64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
 
             success, msg = db.enroll_from_image_array(img, person_name, ai_app, augment=True)
             if success:
@@ -92,12 +133,13 @@ class PaperOCREnroller:
                     "page": idx + 1,
                     "extracted_name": person_name,
                     "ocr_detected": bool(ocr_name),
+                    "face_crop": crop_base64,
                     "success": True,
                     "message": msg
                 })
 
         if not results:
-            return {"success": False, "message": "No face detected in uploaded paper document/PDF."}
+            return {"success": False, "message": "No face detected in uploaded paper document/PDF. Please ensure the document contains a clear face photo."}
 
         return {
             "success": True,

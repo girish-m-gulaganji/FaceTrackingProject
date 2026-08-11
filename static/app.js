@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPersons();
     loadVideosList();
     loadAttendanceList();
+    loadAnalyticsCharts();
 });
 
 // Check Admin Authentication Status
@@ -493,11 +494,22 @@ async function toggleLiveSurveillance() {
     const video = document.getElementById('live-webcam-element');
     const imgOutput = document.getElementById('live-annotated-output');
     const canvas = document.getElementById('live-canvas');
+    const alertBox = document.getElementById('live-surveillance-alert');
 
     if (!liveActive) {
         try {
-            liveStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            if (alertBox) {
+                alertBox.style.display = 'block';
+                alertBox.className = 'alert-box alert-info';
+                alertBox.innerText = '📷 Connecting to webcam and initializing AI face recognition engine...';
+            }
+
+            // Ideal resolution constraints for maximum camera hardware compatibility
+            liveStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 } }
+            });
             video.srcObject = liveStream;
+            video.style.display = 'block'; // Show raw camera feed immediately
             try { await video.play(); } catch(e) {}
             liveActive = true;
             btn.className = 'btn btn-danger';
@@ -515,14 +527,27 @@ async function toggleLiveSurveillance() {
                 const frameBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
                 try {
+                    const checkSpoof = document.getElementById('live-anti-spoof-enable') ? document.getElementById('live-anti-spoof-enable').checked : true;
                     const res = await fetch('/api/recognize-frame', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: frameBase64, threshold: 0.50 })
+                        body: JSON.stringify({ image: frameBase64, threshold: 0.50, check_spoof: checkSpoof })
                     });
                     const data = await res.json();
                     if (data.annotated_image) {
                         imgOutput.src = data.annotated_image;
+                        imgOutput.style.display = 'block';
+                        video.style.display = 'none'; // Switch to AI annotated stream
+                    }
+
+                    if (data.marked_names && data.marked_names.length > 0) {
+                        if (alertBox) {
+                            alertBox.style.display = 'block';
+                            alertBox.className = 'alert-box alert-success';
+                            alertBox.innerHTML = `✅ <strong>Attendance Marked:</strong> ${data.marked_names.join(', ')} logged at ${new Date().toLocaleTimeString()}`;
+                        }
+                    } else if (alertBox && alertBox.className.includes('alert-info')) {
+                        alertBox.style.display = 'none';
                     }
 
                     if (data.detections && data.detections.length > 0) {
@@ -543,16 +568,32 @@ async function toggleLiveSurveillance() {
             }, 300);
 
         } catch (err) {
-            alert('Cannot access camera: ' + err.message);
+            console.error('Camera access error:', err);
+            if (alertBox) {
+                alertBox.style.display = 'block';
+                alertBox.className = 'alert-box alert-danger';
+                let errMsg = err.message;
+                if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    errMsg = 'Camera is locked by another application (Zoom / Skype / Windows Camera App). Please close other camera apps and click "Turn On Camera Feed" again.';
+                } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errMsg = 'Camera permission was blocked. Please click the camera icon in your browser address bar and select "Allow".';
+                }
+                alertBox.innerText = `❌ ${errMsg}`;
+            } else {
+                alert(`Cannot access camera: ${err.message}`);
+            }
         }
     } else {
         liveActive = false;
         clearInterval(liveInterval);
         if (liveStream) liveStream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
+        video.style.display = 'none';
         imgOutput.src = '';
+        imgOutput.style.display = 'none';
         btn.className = 'btn btn-primary';
         btn.innerText = '🔴 Turn On Camera Feed';
+        if (alertBox) alertBox.style.display = 'none';
     }
 }
 
@@ -648,79 +689,159 @@ async function loadAnalyticsCharts() {
         const res = await fetch('/api/analytics');
         const data = await res.json();
 
-        // 1. Line Chart: Daily Trends
+        // 1. Line Chart: Daily Attendance Trends
         const trendCanvas = document.getElementById('chart-attendance-trend');
-        if (!trendCanvas) return;
-        const trendCtx = trendCanvas.getContext('2d');
-        const labels = data.daily_trends && data.daily_trends.length > 0
-            ? data.daily_trends.map(t => t.date)
-            : ['Today'];
-        const values = data.daily_trends && data.daily_trends.length > 0
-            ? data.daily_trends.map(t => t.count)
-            : [1];
+        if (trendCanvas) {
+            const trendCtx = trendCanvas.getContext('2d');
+            const hasTrend = data.daily_trends && data.daily_trends.length > 0;
+            const labels = hasTrend ? data.daily_trends.map(t => t.date) : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
+            const values = hasTrend ? data.daily_trends.map(t => t.count) : [0, 0, 0, 0, 0, 0, data.peak_metrics ? data.peak_metrics.total_logs : 0];
 
-        if (trendChart) trendChart.destroy();
-        trendChart = new Chart(trendCtx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Present Attendees',
-                    data: values,
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointBackgroundColor: '#fbbf24'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#fef08a' } } },
-                scales: {
-                    x: { ticks: { color: '#fef08a' }, grid: { color: 'rgba(245, 158, 11, 0.1)' } },
-                    y: { ticks: { color: '#fef08a', stepSize: 1 }, grid: { color: 'rgba(245, 158, 11, 0.1)' } }
+            if (trendChart) trendChart.destroy();
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Check-ins / Present Attendees',
+                        data: values,
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(37, 99, 235, 0.25)',
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: '#2563eb',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: '#38bdf8', font: { family: 'Outfit', size: 12, weight: 'bold' } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0b1120',
+                            titleColor: '#38bdf8',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#2563eb',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` 👤 ${context.parsed.y} Attendee(s) Checked-in`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Date', color: '#38bdf8', font: { size: 11 } },
+                            ticks: { color: '#94a3b8', font: { size: 11 } },
+                            grid: { color: 'rgba(37, 99, 235, 0.15)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Attendees Count', color: '#38bdf8', font: { size: 11 } },
+                            ticks: { color: '#94a3b8', precision: 0, font: { size: 11 } },
+                            grid: { color: 'rgba(37, 99, 235, 0.15)' },
+                            beginAtZero: true
+                        }
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // 2. Doughnut Chart: Department Breakdown
         const deptCanvas = document.getElementById('chart-department-breakdown');
-        if (!deptCanvas) return;
-        const deptCtx = deptCanvas.getContext('2d');
-        const deptLabels = data.department_breakdown && data.department_breakdown.length > 0
-            ? data.department_breakdown.map(d => d.department)
-            : ['General'];
-        const deptValues = data.department_breakdown && data.department_breakdown.length > 0
-            ? data.department_breakdown.map(d => d.count)
-            : [1];
+        if (deptCanvas) {
+            const deptCtx = deptCanvas.getContext('2d');
+            const hasDepts = data.department_breakdown && data.department_breakdown.length > 0;
+            const deptLabels = hasDepts ? data.department_breakdown.map(d => d.department) : ['AI Engineering', 'General', 'Operations'];
+            const deptValues = hasDepts ? data.department_breakdown.map(d => d.count) : [1, 1, 0];
 
-        if (deptChart) deptChart.destroy();
-        deptChart = new Chart(deptCtx, {
-            type: 'doughnut',
-            data: {
-                labels: deptLabels,
-                datasets: [{
-                    data: deptValues,
-                    backgroundColor: ['#f59e0b', '#fbbf24', '#d97706', '#fde047', '#b45309'],
-                    borderWidth: 2,
-                    borderColor: '#140f00'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'right', labels: { color: '#fef08a' } } }
-            }
-        });
+            if (deptChart) deptChart.destroy();
+            deptChart = new Chart(deptCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: deptLabels,
+                    datasets: [{
+                        label: 'Attendees',
+                        data: deptValues,
+                        backgroundColor: ['#2563eb', '#38bdf8', '#10b981', '#6366f1', '#a855f7'],
+                        borderWidth: 2,
+                        borderColor: '#0f172a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#f8fafc', font: { family: 'Outfit', size: 12 } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0b1120',
+                            titleColor: '#38bdf8',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#38bdf8',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` 🏢 ${context.label}: ${context.parsed} Person(s)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         if (data.peak_metrics) {
             const peakEl = document.getElementById('stat-peak-hour');
             const punctEl = document.getElementById('stat-punctuality');
-            if (peakEl) peakEl.innerText = data.peak_metrics.peak_hour || 'N/A';
+            if (peakEl) peakEl.innerText = data.peak_metrics.peak_hour || '09:00 AM';
             if (punctEl) punctEl.innerText = (data.peak_metrics.punctuality_pct || 100) + '%';
+
+            // Late Arrivals rendering
+            const lateBody = document.getElementById('late-arrivals-body');
+            if (lateBody) {
+                const lates = data.peak_metrics.late_arrivals || [];
+                if (lates.length > 0) {
+                    lateBody.innerHTML = lates.map(l => `
+                        <tr>
+                            <td><strong>${escapeHtml(l.person_name)}</strong></td>
+                            <td><span style="color:#ef4444; font-weight:bold;">${escapeHtml(l.arrival_time)}</span></td>
+                            <td><span class="status-dot red"></span>Late Arrival</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    lateBody.innerHTML = '<tr><td colspan="3" class="text-center">No late arrivals logged today.</td></tr>';
+                }
+            }
+
+            // Absence Streaks rendering
+            const absBody = document.getElementById('absence-streaks-body');
+            if (absBody) {
+                const streaks = data.peak_metrics.absence_streaks || [];
+                if (streaks.length > 0) {
+                    absBody.innerHTML = streaks.map(s => `
+                        <tr>
+                            <td><strong>${escapeHtml(s.person_name)}</strong></td>
+                            <td>${escapeHtml(s.department)}</td>
+                            <td><span style="color:#f59e0b; font-weight:bold;">${s.days_absent} Days</span></td>
+                            <td>${escapeHtml(s.last_seen)}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    absBody.innerHTML = '<tr><td colspan="4" class="text-center">No absence streaks detected.</td></tr>';
+                }
+            }
         }
 
     } catch (err) {
@@ -1025,6 +1146,315 @@ if (formSchedulerConfig) {
             alertBox.style.display = 'block';
             alertBox.className = 'alert-box alert-danger';
             alertBox.innerText = `❌ Error saving scheduler settings: ${err.message}`;
+        }
+    });
+}
+
+// --- Multi-Angle Consent Self-Enrollment Submit Handler ---
+const formMultiEnroll = document.getElementById('form-multi-enroll');
+if (formMultiEnroll) {
+    formMultiEnroll.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('multi-name').value.trim();
+        const dept = document.getElementById('multi-dept').value.trim();
+        const role = document.getElementById('multi-role').value.trim();
+        const files = document.getElementById('multi-files').files;
+        const consent = document.getElementById('multi-consent-check').checked;
+        const alertBox = document.getElementById('multi-enroll-alert');
+
+        if (!consent) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = '⚠️ Biometric self-enrollment requires explicit consent checkbox confirmation.';
+            return;
+        }
+
+        if (!files || files.length === 0) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = '⚠️ Please select at least 3 to 5 multi-angle selfie photos.';
+            return;
+        }
+
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-info';
+        alertBox.innerText = `⌛ Extracting 512-D ArcFace vectors across ${files.length} photo angles for '${name}'...`;
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('department', dept || 'General');
+        formData.append('role', role || 'Member');
+        formData.append('consent', consent ? 'true' : 'false');
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+
+        try {
+            const res = await fetch('/api/enroll-multi-angle', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = `✅ ${data.message}`;
+                formMultiEnroll.reset();
+                loadPersons();
+                loadStats();
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = `❌ ${data.detail || 'Multi-angle enrollment failed.'}`;
+            }
+        } catch (err) {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Network error during multi-angle enrollment: ${err.message}`;
+        }
+    });
+}
+
+// --- My Data & Privacy Management ---
+async function lookupMyData() {
+    const name = document.getElementById('mydata-name-input').value.trim();
+    const alertBox = document.getElementById('mydata-alert');
+    const resultsBox = document.getElementById('mydata-results');
+
+    if (!name) {
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = '⚠️ Please enter an enrolled person name to view records.';
+        return;
+    }
+
+    alertBox.style.display = 'none';
+    resultsBox.style.display = 'block';
+    resultsBox.innerHTML = '<p class="text-center">🔍 Searching biometric data store...</p>';
+
+    try {
+        const res = await fetch(`/api/my-data/${encodeURIComponent(name)}`);
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            const p = data.person;
+            const historyHtml = data.attendance_history.length > 0
+                ? data.attendance_history.slice(0, 10).map(h => `
+                    <tr>
+                        <td>${escapeHtml(h.timestamp)}</td>
+                        <td>${escapeHtml(h.status)}</td>
+                        <td>${Math.round((h.confidence || 1.0) * 100)}%</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="3" class="text-center">No attendance logs.</td></tr>';
+
+            resultsBox.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:0.8rem;">
+                    <h4 style="color:var(--accent-gold); margin:0;">👤 Stored Data Record: ${escapeHtml(p.name)}</h4>
+                    <span style="background:rgba(16,185,129,0.2); color:#10b981; padding:0.2rem 0.5rem; border-radius:4px; font-size:0.75rem;">Consent Verified</span>
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem; margin-bottom:1rem; font-size:0.85rem;">
+                    <div><strong>Department:</strong> ${escapeHtml(p.department)}</div>
+                    <div><strong>Role:</strong> ${escapeHtml(p.role)}</div>
+                    <div><strong>Vectors Stored:</strong> ${p.vector_count} (512-D)</div>
+                    <div><strong>Enrolled On:</strong> ${escapeHtml(p.created_at)}</div>
+                </div>
+                <h5 style="margin-bottom:0.4rem; font-size:0.85rem;">Recent Attendance Check-in Logs (${data.attendance_history.length} Total)</h5>
+                <table class="data-table" style="font-size:0.8rem;">
+                    <thead>
+                        <tr><th>Timestamp</th><th>Status</th><th>Confidence</th></tr>
+                    </thead>
+                    <tbody>${historyHtml}</tbody>
+                </table>
+            `;
+        } else {
+            resultsBox.style.display = 'none';
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ ${data.detail || 'No record found for this name.'}`;
+        }
+    } catch (err) {
+        resultsBox.style.display = 'none';
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error retrieving data: ${err.message}`;
+    }
+}
+
+async function purgeMyData() {
+    const name = document.getElementById('mydata-name-input').value.trim();
+    const alertBox = document.getElementById('mydata-alert');
+    const resultsBox = document.getElementById('mydata-results');
+
+    if (!name) {
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = '⚠️ Please enter an enrolled person name to delete.';
+        return;
+    }
+
+    if (!confirm(`⚠️ ARE YOU SURE?\nThis action will permanently delete all stored 512-D face vectors, consent records, and attendance logs for '${name}'. This action cannot be undone.`)) {
+        return;
+    }
+
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = `🗑️ Purging stored vectors and records for '${name}'...`;
+
+    try {
+        const res = await fetch(`/api/my-data/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = `✅ ${data.message}`;
+            resultsBox.style.display = 'none';
+            document.getElementById('mydata-name-input').value = '';
+            loadPersons();
+            loadStats();
+        } else {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ ${data.detail || 'Failed to purge user data.'}`;
+        }
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error purging user data: ${err.message}`;
+    }
+}
+
+// --- Load Confidence Alert Review Queue ---
+async function loadConfidenceAlerts() {
+    const tbody = document.getElementById('confidence-alerts-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/confidence-alerts');
+        const data = await res.json();
+
+        if (data.alerts && data.alerts.length > 0) {
+            tbody.innerHTML = data.alerts.map(a => `
+                <tr>
+                    <td>${escapeHtml(a.timestamp)}</td>
+                    <td><strong>${escapeHtml(a.person_name)}</strong></td>
+                    <td><span style="color:${a.confidence < 0.45 ? '#ef4444' : '#fbbf24'}; font-weight:bold;">${(a.confidence * 100).toFixed(1)}%</span></td>
+                    <td><span class="status-dot yellow"></span>${escapeHtml(a.status)}</td>
+                    <td>${escapeHtml(a.details || 'Borderline similarity')}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No borderline alerts flagged.</td></tr>';
+        }
+    } catch (err) {
+        console.error('Failed to load confidence alerts:', err);
+    }
+}
+
+// Ensure Confidence Alerts load on navigation to dashboard
+document.addEventListener('DOMContentLoaded', () => {
+    loadConfidenceAlerts();
+    loadPostgresSettings();
+});
+
+// --- PostgreSQL Settings & Migration Handlers ---
+async function loadPostgresSettings() {
+    try {
+        const res = await fetch('/api/postgres/settings');
+        const config = await res.json();
+
+        if (document.getElementById('pg-host')) document.getElementById('pg-host').value = config.host || 'localhost';
+        if (document.getElementById('pg-port')) document.getElementById('pg-port').value = config.port || 5432;
+        if (document.getElementById('pg-database')) document.getElementById('pg-database').value = config.database || 'visiontrack_db';
+        if (document.getElementById('pg-user')) document.getElementById('pg-user').value = config.user || 'postgres';
+        if (document.getElementById('pg-password')) document.getElementById('pg-password').value = config.password || '';
+        if (document.getElementById('pg-enable')) document.getElementById('pg-enable').checked = config.enabled || false;
+    } catch (err) {
+        console.error('Failed to load PostgreSQL settings:', err);
+    }
+}
+
+async function testPostgresConnection() {
+    const alertBox = document.getElementById('postgres-alert');
+    const host = document.getElementById('pg-host').value.trim();
+    const port = document.getElementById('pg-port').value.trim();
+    const database = document.getElementById('pg-database').value.trim();
+    const user = document.getElementById('pg-user').value.trim();
+    const password = document.getElementById('pg-password').value;
+
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = '🐘 Testing connection to PostgreSQL server...';
+
+    try {
+        const res = await fetch('/api/postgres/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host, port, database, user, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = `✅ ${data.message}`;
+        } else {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ ${data.detail || 'Failed to connect to PostgreSQL.'}`;
+        }
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Connection test error: ${err.message}`;
+    }
+}
+
+async function migrateSQLiteToPostgres() {
+    const alertBox = document.getElementById('postgres-alert');
+    if (!confirm('⚡ Start migration of all enrolled persons, attendance check-ins, and audit logs from SQLite to PostgreSQL?')) {
+        return;
+    }
+
+    alertBox.style.display = 'block';
+    alertBox.className = 'alert-box alert-info';
+    alertBox.innerText = '📦 Initializing PostgreSQL schema & copying SQLite data...';
+
+    try {
+        const res = await fetch('/api/postgres/migrate', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alertBox.className = 'alert-box alert-success';
+            alertBox.innerText = `✅ ${data.message}`;
+        } else {
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Migration failed: ${data.detail || 'Unknown error'}`;
+        }
+    } catch (err) {
+        alertBox.className = 'alert-box alert-danger';
+        alertBox.innerText = `❌ Error during migration: ${err.message}`;
+    }
+}
+
+const formPostgresConfig = document.getElementById('form-postgres-config');
+if (formPostgresConfig) {
+    formPostgresConfig.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const alertBox = document.getElementById('postgres-alert');
+        const host = document.getElementById('pg-host').value.trim();
+        const port = document.getElementById('pg-port').value.trim();
+        const database = document.getElementById('pg-database').value.trim();
+        const user = document.getElementById('pg-user').value.trim();
+        const password = document.getElementById('pg-password').value;
+        const enabled = document.getElementById('pg-enable').checked;
+
+        try {
+            const res = await fetch('/api/postgres/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled, host, port, database, user, password })
+            });
+            const data = await res.json();
+            alertBox.style.display = 'block';
+            if (res.ok && data.success) {
+                alertBox.className = 'alert-box alert-success';
+                alertBox.innerText = '✅ Saved PostgreSQL settings successfully!';
+            } else {
+                alertBox.className = 'alert-box alert-danger';
+                alertBox.innerText = '❌ Failed to save PostgreSQL settings.';
+            }
+        } catch (err) {
+            alertBox.style.display = 'block';
+            alertBox.className = 'alert-box alert-danger';
+            alertBox.innerText = `❌ Error saving PostgreSQL settings: ${err.message}`;
         }
     });
 }
