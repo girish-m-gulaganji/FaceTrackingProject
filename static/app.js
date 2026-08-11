@@ -651,6 +651,7 @@ async function loadAttendanceList() {
 async function loadAttendanceDetails(filename) {
     if (!filename) return;
 
+    const tbody = document.getElementById('attendance-table-body');
     const downloadBtn = document.getElementById('btn-download-csv');
     const downloadPdfBtn = document.getElementById('btn-download-pdf');
     const downloadExcelBtn = document.getElementById('btn-download-excel');

@@ -597,12 +597,12 @@ async def recognize_frame(data: dict):
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         draw_fancy_label(frame, f"#{tid} {name} {score:.0%}", x1, y1, color)
 
-        if global_logger.mark(name, source_file="Live Camera Feed"):
-            import re
-            clean_n = re.sub(r"\[.*?\]", "", name).strip()
-            clean_n = re.sub(r"\(.*?\)", "", clean_n).strip()
-            if clean_n and clean_n != "Unknown":
-                marked_names.append(clean_n)
+        import re
+        clean_n = re.sub(r"\[.*?\]", "", name).strip()
+        clean_n = re.sub(r"\(.*?\)", "", clean_n).strip()
+        if clean_n and clean_n != "Unknown":
+            global_logger.mark(name, source_file="Live Camera Feed")
+            marked_names.append(clean_n)
 
     try:
         global_logger.save_csv()
