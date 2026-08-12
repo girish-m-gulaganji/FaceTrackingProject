@@ -295,7 +295,6 @@ from vector_db import VectorDBManager
 from ocr_enrollment import PaperOCREnroller
 from osint_scraper import OSINTScraper
 from liveness_detector import LivenessDetector
-from telegram_notifier import TelegramNotifier
 from occlusion_engine import OcclusionDetector
 
 from scheduler_service import AttendanceReportScheduler
@@ -303,7 +302,6 @@ from postgres_manager import PostgresManager
 
 vector_db = VectorDBManager()
 liveness_engine = LivenessDetector()
-telegram_bot = TelegramNotifier()
 scheduler_service = AttendanceReportScheduler()
 scheduler_service.start()
 postgres_manager = PostgresManager()
@@ -352,15 +350,6 @@ def migrate_to_postgres():
         raise HTTPException(status_code=400, detail=msg)
     db_sql.log_audit("POSTGRES_MIGRATION", msg)
     return {"success": True, "message": msg}
-
-@app.get("/api/telegram/settings")
-def get_telegram_settings():
-    return telegram_bot.config
-
-@app.post("/api/telegram/settings")
-def update_telegram_settings(config: dict):
-    updated = telegram_bot.save_config(config)
-    return {"success": True, "config": updated}
 
 @app.post("/api/enroll-ocr-document")
 async def enroll_ocr_document(file: UploadFile = File(...), name: str = Form(None)):
@@ -583,12 +572,6 @@ async def recognize_frame(data: dict):
             "has_sunglasses": occlusion["has_sunglasses"],
             "is_borderline": is_borderline
         })
-
-        # Telegram Security Alert Trigger
-        if is_borderline:
-            telegram_bot.send_alert("Low-Confidence / Occluded Attendance Alert", f"Borderline check-in for '{name}' (Score: {score:.1%}, {occlusion['details']}).", frame)
-        elif "Unknown" in name:
-            telegram_bot.send_alert("Unknown Person Detected", "Unrecognized person detected in camera feed.", frame)
 
     tracked_dets = global_tracker.update(raw_dets)
     marked_names = []

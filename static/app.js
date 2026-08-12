@@ -124,7 +124,6 @@ function triggerViewLoad(targetView) {
             loadStats();
             loadPersons();
             if (typeof loadAuditLogs === 'function') loadAuditLogs();
-            if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
             if (typeof loadSchedulerSettings === 'function') loadSchedulerSettings();
             if (typeof loadWebhookSettings === 'function') loadWebhookSettings();
             if (typeof loadAnalyticsCharts === 'function') loadAnalyticsCharts();
@@ -1135,54 +1134,7 @@ async function loadAuditLogs() {
     }
 }
 
-// Load & Save Telegram Push Alert Settings
-async function loadTelegramSettings() {
-    try {
-        const res = await fetch('/api/telegram/settings');
-        const config = await res.json();
 
-        const tokenInput = document.getElementById('telegram-bot-token');
-        const chatInput = document.getElementById('telegram-chat-id');
-        const enableCheck = document.getElementById('telegram-enable');
-
-        if (tokenInput) tokenInput.value = config.bot_token || '';
-        if (chatInput) chatInput.value = config.chat_id || '';
-        if (enableCheck) enableCheck.checked = config.enabled || false;
-    } catch (err) {
-        console.error('Failed to load Telegram settings:', err);
-    }
-}
-
-async function saveTelegramSettings(e) {
-    if (e) e.preventDefault();
-    const botToken = document.getElementById('telegram-bot-token').value.trim();
-    const chatId = document.getElementById('telegram-chat-id').value.trim();
-    const enabled = document.getElementById('telegram-enable').checked;
-    const alertBox = document.getElementById('telegram-alert');
-
-    alertBox.style.display = 'block';
-    alertBox.className = 'alert-box alert-info';
-    alertBox.innerText = '💾 Saving Telegram settings...';
-
-    try {
-        const res = await fetch('/api/telegram/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled, bot_token: botToken, chat_id: chatId })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            alertBox.className = 'alert-box alert-success';
-            alertBox.innerText = '✅ Saved Telegram push alert settings successfully!';
-        } else {
-            alertBox.className = 'alert-box alert-danger';
-            alertBox.innerText = '❌ Failed to save Telegram settings.';
-        }
-    } catch (err) {
-        alertBox.className = 'alert-box alert-danger';
-        alertBox.innerText = `❌ Error saving Telegram settings: ${err.message}`;
-    }
-}
 
 // Load & Save Automated Daily Report Dispatcher Settings
 async function loadSchedulerSettings() {
