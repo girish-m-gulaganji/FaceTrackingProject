@@ -4,6 +4,9 @@ import time
 import base64
 import asyncio
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 import cv2
 import numpy as np
 import pandas as pd
