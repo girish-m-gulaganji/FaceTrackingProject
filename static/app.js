@@ -1,18 +1,42 @@
 // VisionTrack AI Frontend JavaScript Engine
 
+let activeToken = localStorage.getItem('admin_token') || '';
+
+// Global Authenticated Fetch Interceptor (Attaches Authorization Header to All API Requests)
+const _originalFetch = window.fetch;
+window.fetch = async function(url, options = {}) {
+    options = options || {};
+    options.headers = options.headers || {};
+    
+    if (activeToken) {
+        if (options.headers instanceof Headers) {
+            if (!options.headers.has('Authorization')) {
+                options.headers.set('Authorization', `Bearer ${activeToken}`);
+            }
+        } else if (typeof options.headers === 'object') {
+            if (!options.headers['Authorization']) {
+                options.headers['Authorization'] = `Bearer ${activeToken}`;
+            }
+        }
+    }
+    
+    const response = await _originalFetch(url, options);
+    
+    // Automatically display login modal on 401 Unauthorized
+    if (response.status === 401 && typeof url === 'string' && !url.includes('/api/login') && !url.includes('/api/auth-status')) {
+        const modal = document.getElementById('login-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+    
+    return response;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     checkAuthStatus();
-    loadStats();
-    loadPersons();
-    loadVideosList();
-    loadAttendanceList();
-    loadAnalyticsCharts();
 });
 
 // Check Admin Authentication Status
-let activeToken = localStorage.getItem('admin_token') || '';
-
 async function checkAuthStatus() {
     const modal = document.getElementById('login-modal');
     try {
@@ -27,11 +51,18 @@ async function checkAuthStatus() {
             }
             const userEl = document.getElementById('session-username');
             if (userEl) userEl.innerText = data.user || 'admin';
+            
+            // Load dashboard data
+            loadStats();
+            loadPersons();
+            loadVideosList();
+            loadAttendanceList();
+            loadAnalyticsCharts();
         } else {
-            if (modal) modal.style.display = 'none';
+            if (modal) modal.style.display = 'flex';
         }
     } catch (err) {
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.style.display = 'flex';
     }
 }
 

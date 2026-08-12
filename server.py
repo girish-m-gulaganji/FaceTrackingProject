@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from typing import Optional
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -57,34 +57,141 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/output_videos", StaticFiles(directory="output_videos"), name="output_videos")
 app.mount("/input_videos", StaticFiles(directory="input_videos"), name="input_videos")
 
-# Admin Session Authentication Management
+# --- Authentication & Session Security Engine ---
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
-active_sessions = set()
+SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", "60"))
+
+# Active session store: token -> {"user": username, "last_active": timestamp}
+active_sessions: dict[str, dict] = {}
+
+# Login rate limiting store: client_ip -> {"count": int, "lockout_until": timestamp}
+login_failed_attempts: dict[str, dict] = {}
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_SECONDS = 300  # 5 minutes lockout
+
+def is_valid_session(token: str) -> bool:
+    """Validate token against active_sessions, enforce idle timeout, and update activity."""
+    if not token or token not in active_sessions:
+        return False
+    
+    session = active_sessions[token]
+    elapsed_seconds = time.time() - session.get("last_active", 0)
+    
+    if elapsed_seconds > (SESSION_TIMEOUT_MINUTES * 60):
+        del active_sessions[token]
+        return False
+    
+    session["last_active"] = time.time()
+    return True
+
+@app.middleware("http")
+async def enforce_auth_middleware(request: Request, call_next):
+    """Enforce session authentication middleware across all endpoints except whitelisted paths."""
+    path = request.url.path
+    
+    # Whitelisted public routes & static resources
+    if (
+        path == "/"
+        or path == "/favicon.ico"
+        or path == "/api/login"
+        or path == "/api/logout"
+        or path == "/api/auth-status"
+        or path.startswith("/static/")
+        or path.startswith("/output_videos/")
+        or path.startswith("/input_videos/")
+    ):
+        return await call_next(request)
+    
+    # Extract session token from Authorization header, query param, or cookie
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1].strip()
+    if not token:
+        token = request.query_params.get("token")
+    if not token:
+        token = request.cookies.get("admin_session")
+        
+    if not token or not is_valid_session(token):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Authentication required. Please log in to access this resource."}
+        )
+        
+    return await call_next(request)
 
 @app.post("/api/login")
-def login(username: str = Form(...), password: str = Form(...)):
+def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    now = time.time()
+    
+    # Check rate limit lockout status
+    rate_info = login_failed_attempts.get(client_ip, {"count": 0, "lockout_until": 0})
+    if rate_info["lockout_until"] > now:
+        remaining_seconds = int(rate_info["lockout_until"] - now)
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"Too many failed login attempts. Account locked. Try again in {remaining_seconds} seconds."}
+        )
+    
+    # Verify env-based ADMIN_USER / ADMIN_PASS credentials
     if username == ADMIN_USER and password == ADMIN_PASS:
-        token = f"sess_{int(time.time()*1000)}"
-        active_sessions.add(token)
+        if client_ip in login_failed_attempts:
+            del login_failed_attempts[client_ip]
+            
+        token = f"sess_{int(now*1000)}_{os.urandom(6).hex()}"
+        active_sessions[token] = {
+            "user": username,
+            "last_active": now,
+            "created_at": now
+        }
         response = JSONResponse(content={"success": True, "token": token, "username": username})
         response.set_cookie(key="admin_session", value=token, httponly=True)
         return response
-    raise HTTPException(status_code=401, detail="Invalid username or password.")
+    
+    # Handle failed login attempt & rate limit counter
+    count = rate_info["count"] + 1
+    if count >= MAX_FAILED_LOGIN_ATTEMPTS:
+        lockout_until = now + LOCKOUT_DURATION_SECONDS
+        login_failed_attempts[client_ip] = {"count": count, "lockout_until": lockout_until}
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"Too many failed login attempts. Account locked out for {LOCKOUT_DURATION_SECONDS // 60} minutes."}
+        )
+    else:
+        login_failed_attempts[client_ip] = {"count": count, "lockout_until": 0}
+        attempts_left = MAX_FAILED_LOGIN_ATTEMPTS - count
+        raise HTTPException(
+            status_code=401,
+            detail=f"Invalid username or password. ({attempts_left} attempt(s) remaining before lockout)"
+        )
 
 @app.post("/api/logout")
-def logout(session: Optional[str] = Form(None)):
-    if session in active_sessions:
-        active_sessions.remove(session)
+def logout(request: Request, session: Optional[str] = Form(None)):
+    token = session
+    if not token:
+        token = request.cookies.get("admin_session")
+    if token and token in active_sessions:
+        del active_sessions[token]
     response = JSONResponse(content={"success": True, "message": "Logged out."})
     response.delete_cookie(key="admin_session")
     return response
 
 @app.get("/api/auth-status")
-def auth_status(token: Optional[str] = None):
-    default_token = "sess_default_admin"
-    active_sessions.add(default_token)
-    return {"authenticated": True, "user": ADMIN_USER, "token": default_token}
+def auth_status(request: Request, token: Optional[str] = None):
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1].strip()
+    if not token:
+        token = request.cookies.get("admin_session")
+        
+    if token and is_valid_session(token):
+        user = active_sessions[token]["user"]
+        return {"authenticated": True, "user": user, "token": token}
+    
+    return {"authenticated": False, "user": None}
 
 @app.get("/")
 @app.head("/")
